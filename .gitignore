@@ -1,0 +1,24 @@
+node_modules
+dist
+dist-ssr
+*.local
+
+# Environment — never commit real keys
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# Supabase local
+supabase/.temp
+supabase/.branches
+
+# Logs
+logs
+*.log
+npm-debug.log*
