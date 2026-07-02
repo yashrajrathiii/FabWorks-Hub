@@ -9,14 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Loader2, Save, Settings2, ChevronDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Loader2, Save, Settings2 } from "lucide-react";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import { formatINR } from "@/lib/format";
 import {
   SHAPES,
@@ -73,6 +69,21 @@ export default function QuotationEditor() {
   });
   const [fittingsOn, setFittingsOn] = useState(false);
   const [deliveryOn, setDeliveryOn] = useState(false);
+
+  // New quotes take the overhead numbers from app settings; saved quotes keep theirs.
+  const { data: appSettings } = useAppSettings();
+  useEffect(() => {
+    if (isNew && appSettings) {
+      setData((d) => ({
+        ...d,
+        overhead: {
+          labourPerMonth: appSettings.labour_per_month,
+          elecPerMonth: appSettings.elec_per_month,
+          throughputKg: appSettings.throughput_kg,
+        },
+      }));
+    }
+  }, [isNew, appSettings]);
 
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
@@ -608,69 +619,22 @@ export default function QuotationEditor() {
                 </div>
               </div>
 
-              <Collapsible>
-                <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-primary">
-                  <Settings2 className="h-4 w-4" /> Overhead settings (monthly costs → per-kg rate)
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="mt-3 space-y-3 border-l-2 pl-4">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Labour / month (₹)</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          value={data.overhead.labourPerMonth || ""}
-                          onChange={(e) =>
-                            setData((d) => ({
-                              ...d,
-                              overhead: { ...d.overhead, labourPerMonth: num(e.target.value) },
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Electricity / month (₹)</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          inputMode="decimal"
-                          value={data.overhead.elecPerMonth || ""}
-                          onChange={(e) =>
-                            setData((d) => ({
-                              ...d,
-                              overhead: { ...d.overhead, elecPerMonth: num(e.target.value) },
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Material processed / month (kg)</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          inputMode="decimal"
-                          value={data.overhead.throughputKg || ""}
-                          onChange={(e) =>
-                            setData((d) => ({
-                              ...d,
-                              overhead: { ...d.overhead, throughputKg: num(e.target.value) },
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs text-warning">
-                      ({data.overhead.labourPerMonth.toLocaleString("en-IN")} +{" "}
-                      {data.overhead.elecPerMonth.toLocaleString("en-IN")}) ÷{" "}
-                      {data.overhead.throughputKg.toLocaleString("en-IN")} kg = ₹
-                      {totals.perKgBaseOverhead.toFixed(2)}/kg base overhead
-                    </p>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed px-3.5 py-2.5 text-xs text-muted-foreground">
+                <span>
+                  Overhead: ({data.overhead.labourPerMonth.toLocaleString("en-IN")} +{" "}
+                  {data.overhead.elecPerMonth.toLocaleString("en-IN")}) ÷{" "}
+                  {data.overhead.throughputKg.toLocaleString("en-IN")} kg ={" "}
+                  <span className="font-medium text-foreground">
+                    ₹{totals.perKgBaseOverhead.toFixed(2)}/kg
+                  </span>{" "}
+                  × complexity
+                </span>
+                {isNew && (
+                  <Link to="/settings" className="flex items-center gap-1 font-medium text-primary">
+                    <Settings2 className="h-3.5 w-3.5" /> Change in Settings
+                  </Link>
+                )}
+              </div>
             </CardContent>
           </Card>
 

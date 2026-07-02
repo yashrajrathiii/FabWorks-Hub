@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, HardHat, Calculator, LogOut, Flame } from "lucide-react";
+import { LayoutDashboard, Users, HardHat, Calculator, Settings, LogOut, Flame } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ const navItems = [
   { to: "/clients", label: "Clients & Leads", icon: Users },
   { to: "/labour", label: "Labour", icon: HardHat },
   { to: "/quotations", label: "Quotations", icon: Calculator },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 const pageTitles: Record<string, string> = {
@@ -16,6 +17,7 @@ const pageTitles: Record<string, string> = {
   "/clients": "Clients & Leads",
   "/labour": "Labour",
   "/quotations": "Quotations",
+  "/settings": "Settings",
 };
 
 export default function AppLayout() {
@@ -39,7 +41,7 @@ export default function AppLayout() {
           </div>
         </div>
         <nav className="mt-2 flex flex-1 flex-col gap-1 px-3">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {navItems.slice(0, 4).map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -58,6 +60,22 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
+        <div className="px-3 pb-2">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              )
+            }
+          >
+            <Settings className="h-[18px] w-[18px]" />
+            Settings
+          </NavLink>
+        </div>
         <div className="border-t border-sidebar-border p-4">
           <p className="truncate text-xs font-medium text-white">{profile?.full_name || profile?.email}</p>
           <Button
