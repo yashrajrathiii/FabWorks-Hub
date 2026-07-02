@@ -11,8 +11,11 @@ TypeScript + Tailwind + shadcn/ui on a Supabase backend; deploys to Vercel.
 - **Labour** — worker records with daily wage, one-tap daily attendance
   (present / half-day / absent) with monthly day counts, and weekly/monthly task
   assignment with status tracking
-- **Quotations** — calculator (materials × ₹/kg + labour + transport + margin + GST),
-  saved quotes with draft/sent/accepted/rejected status
+- **Quotations** — estimating calculator: material take-off (box pipe, bars, flats,
+  angles — weight from dimensions × density, with C/C span fill for repeating members),
+  supplier ₹/kg rate, per-kg overhead (monthly labour + electricity ÷ throughput ×
+  complexity), fittings/delivery/services, profit margin, optional GST; saved quotes
+  with draft/sent/accepted/rejected status
 
 Works on desktop (sidebar layout) and mobile (bottom navigation).
 

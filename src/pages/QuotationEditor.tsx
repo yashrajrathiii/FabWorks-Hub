@@ -8,56 +8,44 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Loader2, Save } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Loader2, Save, Settings2, ChevronDown } from "lucide-react";
 import { formatINR } from "@/lib/format";
-import type { Client, QuoteData, QuoteItem, QuoteStatus, Quotation } from "@/types";
+import {
+  SHAPES,
+  MATERIALS,
+  COMPLEXITY_OPTIONS,
+  DIM_TEMPLATES,
+  unitWeight,
+  partPieces,
+  partTotalKg,
+  buildSpec,
+  computeQuote,
+  defaultQuoteData,
+} from "@/lib/quote";
+import type { Client, MemberShape, QuoteData, QuotePart, QuoteStatus, Quotation, ServiceLine } from "@/types";
+import { cn } from "@/lib/utils";
 
-/**
- * NOTE: These are placeholder v1 formulas.
- * They will be replaced with the owner's original quotation-calculator logic
- * once it's provided — the layout and saving flow stay the same.
- */
-const materials = ["MS Pipe", "MS Angle", "MS Channel", "MS Flat", "MS Sheet", "SS 304", "Other"];
-
-function newItem(): QuoteItem {
-  return {
-    id: crypto.randomUUID(),
-    description: "",
-    material: "MS Pipe",
-    quantity: 1,
-    weightKg: 0,
-    ratePerKg: 0,
-  };
-}
-
-const defaultData: QuoteData = {
-  items: [newItem()],
-  labourCharge: 0,
-  transportCharge: 0,
-  otherCharge: 0,
-  marginPct: 15,
-  gstPct: 18,
-};
-
-function lineTotal(item: QuoteItem): number {
-  return item.quantity * item.weightKg * item.ratePerKg;
-}
-
-function computeTotals(data: QuoteData) {
-  const materialCost = data.items.reduce((sum, item) => sum + lineTotal(item), 0);
-  const baseCost = materialCost + data.labourCharge + data.transportCharge + data.otherCharge;
-  const margin = (baseCost * data.marginPct) / 100;
-  const subtotal = baseCost + margin;
-  const gst = (subtotal * data.gstPct) / 100;
-  const total = subtotal + gst;
-  return { materialCost, baseCost, margin, subtotal, gst, total };
-}
+const marginPresets = [10, 15, 20, 25];
 
 function num(value: string): number {
   const n = parseFloat(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+function defaultDims(shape: MemberShape): QuotePart["dims"] {
+  const dims: QuotePart["dims"] = {};
+  for (const [key, , def] of DIM_TEMPLATES[shape]) {
+    (dims as Record<string, number>)[key] = def;
+  }
+  return dims;
 }
 
 export default function QuotationEditor() {
@@ -72,7 +60,19 @@ export default function QuotationEditor() {
   const [status, setStatus] = useState<QuoteStatus>("draft");
   const [validUntil, setValidUntil] = useState("");
   const [notes, setNotes] = useState("");
-  const [data, setData] = useState<QuoteData>(defaultData);
+  const [data, setData] = useState<QuoteData>(defaultQuoteData);
+
+  // "new member" form state
+  const [draft, setDraft] = useState<QuotePart>({
+    id: "",
+    name: "",
+    shape: "box",
+    density: 7850,
+    dims: defaultDims("box"),
+    qty: 1,
+  });
+  const [fittingsOn, setFittingsOn] = useState(false);
+  const [deliveryOn, setDeliveryOn] = useState(false);
 
   const { data: clients = [] } = useQuery({
     queryKey: ["clients"],
@@ -102,15 +102,24 @@ export default function QuotationEditor() {
     setStatus(existing.status);
     setValidUntil(existing.valid_until ?? "");
     setNotes(existing.notes ?? "");
-    const d = existing.data;
-    setData({
-      ...defaultData,
-      ...d,
-      items: d.items?.length ? d.items : [newItem()],
-    });
+    const loaded: QuoteData = {
+      ...defaultQuoteData,
+      ...existing.data,
+      overhead: { ...defaultQuoteData.overhead, ...existing.data?.overhead },
+      parts: existing.data?.parts ?? [],
+      services: existing.data?.services ?? [],
+    };
+    setData(loaded);
+    setFittingsOn(loaded.fittings > 0);
+    setDeliveryOn(loaded.delivery > 0);
   }, [existing]);
 
-  const totals = computeTotals(data);
+  const effectiveData: QuoteData = {
+    ...data,
+    fittings: fittingsOn ? data.fittings : 0,
+    delivery: deliveryOn ? data.delivery : 0,
+  };
+  const totals = computeQuote(effectiveData);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -118,7 +127,7 @@ export default function QuotationEditor() {
         client_id: clientId || null,
         client_name: clientName || clients.find((c) => c.id === clientId)?.name || "",
         project_title: projectTitle,
-        data: data as unknown as Record<string, unknown>,
+        data: effectiveData as unknown as Record<string, unknown>,
         subtotal: totals.subtotal,
         gst_pct: data.gstPct,
         total: totals.total,
@@ -145,10 +154,31 @@ export default function QuotationEditor() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  function updateItem(itemId: string, patch: Partial<QuoteItem>) {
+  function setShape(shape: MemberShape) {
+    setDraft((d) => ({ ...d, shape, dims: { ...defaultDims(shape), cc: d.dims.cc, span: d.dims.span } }));
+  }
+
+  function setDim(key: string, value: string) {
+    setDraft((d) => ({
+      ...d,
+      dims: { ...d.dims, [key]: value === "" ? undefined : num(value) },
+    }));
+  }
+
+  function addPart() {
+    const part: QuotePart = { ...draft, id: crypto.randomUUID() };
+    if (unitWeight(part) <= 0) {
+      toast.error("Check the dimensions — weight came out as zero.");
+      return;
+    }
+    setData((d) => ({ ...d, parts: [...d.parts, part] }));
+    setDraft((d) => ({ ...d, name: "", qty: 1, dims: { ...d.dims, cc: undefined, span: undefined } }));
+  }
+
+  function updateService(sid: string, patch: Partial<ServiceLine>) {
     setData((d) => ({
       ...d,
-      items: d.items.map((it) => (it.id === itemId ? { ...it, ...patch } : it)),
+      services: d.services.map((s) => (s.id === sid ? { ...s, ...patch } : s)),
     }));
   }
 
@@ -187,8 +217,9 @@ export default function QuotationEditor() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-4 lg:grid-cols-[1fr_330px]">
         <div className="space-y-4">
+          {/* ── Project details ── */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Project details</CardTitle>
@@ -198,7 +229,7 @@ export default function QuotationEditor() {
                 <Label htmlFor="q-title">Project title</Label>
                 <Input
                   id="q-title"
-                  placeholder="e.g. Main gate + staircase railing"
+                  placeholder="e.g. Balcony railing — 3m span"
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
                 />
@@ -239,157 +270,407 @@ export default function QuotationEditor() {
             </CardContent>
           </Card>
 
+          {/* ── ① Material take-off ── */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base">Materials</CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => setData((d) => ({ ...d, items: [...d.items, newItem()] }))}
-              >
-                <Plus className="h-3.5 w-3.5" /> Add item
-              </Button>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">① Material take-off</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Read dimensions off the drawing and add each member — the weight is worked out for you. Use
+                "spacing @ C/C" when verticals repeat across a span.
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {data.items.map((item, idx) => (
-                <div key={item.id} className="rounded-lg border p-3">
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Item {idx + 1}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold">{formatINR(lineTotal(item), true)}</p>
-                      {data.items.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() =>
-                            setData((d) => ({ ...d, items: d.items.filter((it) => it.id !== item.id) }))
-                          }
-                          aria-label="Remove item"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                    <div className="col-span-2 space-y-1">
-                      <Label className="text-xs">Description</Label>
-                      <Input
-                        placeholder="e.g. 2×2 square pipe frame"
-                        value={item.description}
-                        onChange={(e) => updateItem(item.id, { description: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Material</Label>
-                      <Select value={item.material} onValueChange={(v) => updateItem(item.id, { material: v })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {materials.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Qty</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        inputMode="decimal"
-                        value={item.quantity || ""}
-                        onChange={(e) => updateItem(item.id, { quantity: num(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Weight (kg)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        inputMode="decimal"
-                        value={item.weightKg || ""}
-                        onChange={(e) => updateItem(item.id, { weightKg: num(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Rate (₹/kg)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        inputMode="decimal"
-                        value={item.ratePerKg || ""}
-                        onChange={(e) => updateItem(item.id, { ratePerKg: num(e.target.value) })}
-                      />
-                    </div>
-                  </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Member type</Label>
+                  <Select value={draft.shape} onValueChange={(v) => setShape(v as MemberShape)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SHAPES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ))}
+                <div className="space-y-1.5">
+                  <Label>Material</Label>
+                  <Select
+                    value={String(draft.density)}
+                    onValueChange={(v) => setDraft((d) => ({ ...d, density: Number(v) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MATERIALS.map((m) => (
+                        <SelectItem key={m.density} value={String(m.density)}>
+                          {m.label} — {m.density} kg/m³
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {DIM_TEMPLATES[draft.shape].map(([key, label]) => (
+                  <div key={key} className="space-y-1">
+                    <Label className="text-xs">{label}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      value={draft.dims[key as keyof QuotePart["dims"]] ?? ""}
+                      onChange={(e) => setDim(key, e.target.value)}
+                    />
+                  </div>
+                ))}
+                {draft.shape !== "manual" && (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Span fill @ C/C (mm) — opt.</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        inputMode="decimal"
+                        placeholder="e.g. 100"
+                        value={draft.dims.cc ?? ""}
+                        onChange={(e) => setDim("cc", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Across span (m) — opt.</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        inputMode="decimal"
+                        placeholder="e.g. 3.0"
+                        value={draft.dims.span ?? ""}
+                        onChange={(e) => setDim("span", e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-[1fr_120px_auto]">
+                <div className="space-y-1">
+                  <Label className="text-xs">Part name (optional)</Label>
+                  <Input
+                    placeholder="e.g. Balcony railing verticals"
+                    value={draft.name}
+                    onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Quantity</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    inputMode="numeric"
+                    value={draft.qty || ""}
+                    onChange={(e) => setDraft((d) => ({ ...d, qty: Math.max(1, Math.round(num(e.target.value))) }))}
+                  />
+                </div>
+                <Button onClick={addPart} className="gap-1.5 self-end">
+                  <Plus className="h-4 w-4" /> Add member
+                </Button>
+              </div>
+
+              {data.parts.length > 0 && (
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/50 text-left text-xs text-muted-foreground">
+                        <th className="p-2.5 font-medium">Member</th>
+                        <th className="p-2.5 text-right font-medium">Pieces</th>
+                        <th className="p-2.5 text-right font-medium">Unit kg</th>
+                        <th className="p-2.5 text-right font-medium">Total kg</th>
+                        <th className="w-10 p-2.5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.parts.map((part) => (
+                        <tr key={part.id} className="border-b last:border-0">
+                          <td className="p-2.5">
+                            <p className="font-medium">
+                              {part.name || SHAPES.find((s) => s.value === part.shape)?.label}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{buildSpec(part)}</p>
+                          </td>
+                          <td className="p-2.5 text-right tabular-nums">{partPieces(part)}</td>
+                          <td className="p-2.5 text-right tabular-nums">{unitWeight(part).toFixed(2)}</td>
+                          <td className="p-2.5 text-right font-medium tabular-nums">{partTotalKg(part).toFixed(1)}</td>
+                          <td className="p-2.5 text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() =>
+                                setData((d) => ({ ...d, parts: d.parts.filter((p) => p.id !== part.id) }))
+                              }
+                              aria-label="Remove member"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="flex items-baseline justify-between rounded-lg border border-dashed border-primary/50 bg-accent/50 px-4 py-3">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Estimated material required
+                </span>
+                <span className="text-2xl font-bold tabular-nums text-primary">
+                  {totals.totalKg.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">kg</span>
+                </span>
+              </div>
             </CardContent>
           </Card>
 
+          {/* ── ② Rate + ③ Pricing ── */}
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Charges & margin</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">② Supplier rate · ③ Pricing</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Enter today's supplier rate. Overhead (labour + electricity) is applied automatically per kg.
+              </p>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Labour (₹)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  inputMode="decimal"
-                  value={data.labourCharge || ""}
-                  onChange={(e) => setData((d) => ({ ...d, labourCharge: num(e.target.value) }))}
-                />
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Supplier rate (₹/kg, today)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    value={data.ratePerKg || ""}
+                    onChange={(e) => setData((d) => ({ ...d, ratePerKg: num(e.target.value) }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Job complexity (labour intensity)</Label>
+                  <Select
+                    value={String(data.complexity)}
+                    onValueChange={(v) => setData((d) => ({ ...d, complexity: Number(v) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COMPLEXITY_OPTIONS.map((c) => (
+                        <SelectItem key={c.value} value={String(c.value)}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
               <div className="space-y-1.5">
-                <Label className="text-xs">Transport (₹)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  inputMode="decimal"
-                  value={data.transportCharge || ""}
-                  onChange={(e) => setData((d) => ({ ...d, transportCharge: num(e.target.value) }))}
-                />
+                <Label>Profit margin</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {marginPresets.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setData((d) => ({ ...d, marginPct: preset }))}
+                      className={cn(
+                        "rounded-full border px-3.5 py-1.5 text-sm font-medium tabular-nums transition-colors",
+                        data.marginPct === preset
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/40"
+                      )}
+                    >
+                      {preset}%
+                    </button>
+                  ))}
+                  <Input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    placeholder="Custom %"
+                    className="w-28"
+                    value={marginPresets.includes(data.marginPct) ? "" : data.marginPct || ""}
+                    onChange={(e) => setData((d) => ({ ...d, marginPct: num(e.target.value) }))}
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Other (₹)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  inputMode="decimal"
-                  value={data.otherCharge || ""}
-                  onChange={(e) => setData((d) => ({ ...d, otherCharge: num(e.target.value) }))}
-                />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Include fittings</p>
+                      <p className="text-xs text-muted-foreground">needs fitters / mounting</p>
+                    </div>
+                    <Switch checked={fittingsOn} onCheckedChange={setFittingsOn} />
+                  </div>
+                  {fittingsOn && (
+                    <Input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="₹"
+                      value={data.fittings || ""}
+                      onChange={(e) => setData((d) => ({ ...d, fittings: num(e.target.value) }))}
+                    />
+                  )}
+                </div>
+                <div className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Include delivery</p>
+                      <p className="text-xs text-muted-foreground">transport to site</p>
+                    </div>
+                    <Switch checked={deliveryOn} onCheckedChange={setDeliveryOn} />
+                  </div>
+                  {deliveryOn && (
+                    <Input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="₹"
+                      value={data.delivery || ""}
+                      onChange={(e) => setData((d) => ({ ...d, delivery: num(e.target.value) }))}
+                    />
+                  )}
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Margin (%)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  inputMode="decimal"
-                  value={data.marginPct || ""}
-                  onChange={(e) => setData((d) => ({ ...d, marginPct: num(e.target.value) }))}
-                />
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Extra services (cutting, welding, painting…)</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() =>
+                      setData((d) => ({
+                        ...d,
+                        services: [...d.services, { id: crypto.randomUUID(), label: "", amount: 0 }],
+                      }))
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add line
+                  </Button>
+                </div>
+                {data.services.map((svc) => (
+                  <div key={svc.id} className="grid grid-cols-[1fr_110px_36px] gap-2">
+                    <Input
+                      placeholder="Service (e.g. Painting & primer)"
+                      value={svc.label}
+                      onChange={(e) => updateService(svc.id, { label: e.target.value })}
+                    />
+                    <Input
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder="₹"
+                      value={svc.amount || ""}
+                      onChange={(e) => updateService(svc.id, { amount: num(e.target.value) })}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        setData((d) => ({ ...d, services: d.services.filter((s) => s.id !== svc.id) }))
+                      }
+                      aria-label="Remove service"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">GST (%)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  inputMode="decimal"
-                  value={data.gstPct || ""}
-                  onChange={(e) => setData((d) => ({ ...d, gstPct: num(e.target.value) }))}
-                />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>GST (%) — set 0 to quote without tax</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    value={data.gstPct || ""}
+                    onChange={(e) => setData((d) => ({ ...d, gstPct: num(e.target.value) }))}
+                  />
+                </div>
               </div>
+
+              <Collapsible>
+                <CollapsibleTrigger className="flex items-center gap-1.5 text-sm font-medium text-primary">
+                  <Settings2 className="h-4 w-4" /> Overhead settings (monthly costs → per-kg rate)
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-3 space-y-3 border-l-2 pl-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Labour / month (₹)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          value={data.overhead.labourPerMonth || ""}
+                          onChange={(e) =>
+                            setData((d) => ({
+                              ...d,
+                              overhead: { ...d.overhead, labourPerMonth: num(e.target.value) },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Electricity / month (₹)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          value={data.overhead.elecPerMonth || ""}
+                          onChange={(e) =>
+                            setData((d) => ({
+                              ...d,
+                              overhead: { ...d.overhead, elecPerMonth: num(e.target.value) },
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Material processed / month (kg)</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          inputMode="decimal"
+                          value={data.overhead.throughputKg || ""}
+                          onChange={(e) =>
+                            setData((d) => ({
+                              ...d,
+                              overhead: { ...d.overhead, throughputKg: num(e.target.value) },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-warning">
+                      ({data.overhead.labourPerMonth.toLocaleString("en-IN")} +{" "}
+                      {data.overhead.elecPerMonth.toLocaleString("en-IN")}) ÷{" "}
+                      {data.overhead.throughputKg.toLocaleString("en-IN")} kg = ₹
+                      {totals.perKgBaseOverhead.toFixed(2)}/kg base overhead
+                    </p>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </CardContent>
           </Card>
 
@@ -408,46 +689,71 @@ export default function QuotationEditor() {
           </Card>
         </div>
 
-        {/* Summary — sticky on desktop, inline on mobile */}
+        {/* ── Breakdown — sticky on desktop ── */}
         <div className="lg:sticky lg:top-20 lg:self-start">
           <Card className="border-primary/20">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Quote summary</CardTitle>
+              <CardTitle className="text-base">Quotation breakdown</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
+            <CardContent className="space-y-2 text-sm tabular-nums">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Material cost</span>
-                <span>{formatINR(totals.materialCost, true)}</span>
+                <span className="text-muted-foreground">
+                  Material{" "}
+                  {totals.totalKg > 0 && (
+                    <span className="text-xs">
+                      ({totals.totalKg.toFixed(0)}kg × ₹{data.ratePerKg})
+                    </span>
+                  )}
+                </span>
+                <span>{formatINR(totals.material)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Labour</span>
-                <span>{formatINR(data.labourCharge, true)}</span>
+                <span className="text-muted-foreground">
+                  Overhead{" "}
+                  {totals.totalKg > 0 && (
+                    <span className="text-xs">
+                      ({totals.totalKg.toFixed(0)}kg × ₹{totals.perKgOverhead.toFixed(1)})
+                    </span>
+                  )}
+                </span>
+                <span>{formatINR(totals.overhead)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Transport + other</span>
-                <span>{formatINR(data.transportCharge + data.otherCharge, true)}</span>
+                <span className="text-muted-foreground">Fittings</span>
+                <span>{formatINR(totals.fittings)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Margin ({data.marginPct}%)</span>
-                <span>{formatINR(totals.margin, true)}</span>
+                <span className="text-muted-foreground">Delivery</span>
+                <span>{formatINR(totals.delivery)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Extra services</span>
+                <span>{formatINR(totals.services)}</span>
               </div>
               <Separator />
               <div className="flex justify-between font-medium">
-                <span>Subtotal</span>
-                <span>{formatINR(totals.subtotal, true)}</span>
+                <span>Subtotal (cost)</span>
+                <span>{formatINR(totals.subtotal)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">GST ({data.gstPct}%)</span>
-                <span>{formatINR(totals.gst, true)}</span>
+                <span className="text-muted-foreground">Profit @ {data.marginPct}%</span>
+                <span className="font-medium text-warning">{formatINR(totals.profit)}</span>
               </div>
-              <Separator />
-              <div className="flex justify-between text-base font-bold">
-                <span>Total</span>
-                <span className="text-primary">{formatINR(totals.total, true)}</span>
+              {data.gstPct > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">GST ({data.gstPct}%)</span>
+                  <span>{formatINR(totals.gst)}</span>
+                </div>
+              )}
+              <div className="mt-2 flex items-baseline justify-between rounded-lg bg-primary px-4 py-3 text-primary-foreground">
+                <span className="text-xs font-medium uppercase tracking-wide">Final quotation</span>
+                <span className="text-2xl font-bold">{formatINR(totals.total)}</span>
               </div>
-              <p className="pt-2 text-[11px] leading-snug text-muted-foreground">
-                Formulas are v1 placeholders — they'll be aligned with your original calculator.
-              </p>
+              {totals.totalKg > 0 && (
+                <p className="text-right text-xs text-muted-foreground">
+                  Effective rate to customer: ₹{totals.effectivePerKg.toFixed(0)} / kg
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

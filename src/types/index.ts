@@ -65,26 +65,54 @@ export interface WorkerTask {
 
 export type QuoteStatus = "draft" | "sent" | "accepted" | "rejected";
 
-/** A single line in the quotation calculator (v1 logic — to be aligned with the owner's formulas). */
-export interface QuoteItem {
+export type MemberShape = "box" | "sqbar" | "rndbar" | "flat" | "angle" | "manual";
+
+/** One fabrication member in the material take-off (ported from the owner's v1 calculator). */
+export interface QuotePart {
   id: string;
-  description: string;
-  /** e.g. MS pipe, angle, channel, flat, sheet */
-  material: string;
-  quantity: number;
-  /** total weight in kg for this line */
-  weightKg: number;
-  /** material rate ₹/kg */
-  ratePerKg: number;
+  name: string;
+  shape: MemberShape;
+  /** material density in kg/m³ (7850 = mild steel, 7200 = cast iron, 8000 = SS, 8960 = copper) */
+  density: number;
+  /** len in metres; w/h/t/side/dia/leg in mm; kg for manual; cc (mm) + span (m) for repeating members */
+  dims: {
+    len?: number;
+    w?: number;
+    h?: number;
+    t?: number;
+    side?: number;
+    dia?: number;
+    leg?: number;
+    kg?: number;
+    cc?: number;
+    span?: number;
+  };
+  qty: number;
+}
+
+export interface ServiceLine {
+  id: string;
+  label: string;
+  amount: number;
 }
 
 export interface QuoteData {
-  items: QuoteItem[];
-  labourCharge: number;
-  transportCharge: number;
-  otherCharge: number;
+  parts: QuotePart[];
+  /** supplier rate ₹/kg (today's) */
+  ratePerKg: number;
+  /** labour intensity multiplier: 1 / 1.5 / 2 / 2.5 */
+  complexity: number;
   marginPct: number;
+  fittings: number;
+  delivery: number;
+  services: ServiceLine[];
   gstPct: number;
+  /** monthly costs → per-kg overhead */
+  overhead: {
+    labourPerMonth: number;
+    elecPerMonth: number;
+    throughputKg: number;
+  };
 }
 
 export interface Quotation {
