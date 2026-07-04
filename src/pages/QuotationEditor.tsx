@@ -11,8 +11,14 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Loader2, Save, Settings2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Loader2, Save, Settings2, Printer, Mail } from "lucide-react";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import {
+  defaultInstallments,
+  installmentAmount,
+  openAgreementPrintView,
+  buildAgreementEmail,
+} from "@/lib/agreement";
 import { formatINR } from "@/lib/format";
 import {
   SHAPES,
@@ -26,7 +32,16 @@ import {
   computeQuote,
   defaultQuoteData,
 } from "@/lib/quote";
-import type { Client, MemberShape, QuoteData, QuotePart, QuoteStatus, Quotation, ServiceLine } from "@/types";
+import type {
+  Client,
+  MemberShape,
+  PaymentInstallment,
+  QuoteData,
+  QuotePart,
+  QuoteStatus,
+  Quotation,
+  ServiceLine,
+} from "@/types";
 import { cn } from "@/lib/utils";
 
 const marginPresets = [10, 15, 20, 25];
@@ -69,6 +84,12 @@ export default function QuotationEditor() {
   });
   const [fittingsOn, setFittingsOn] = useState(false);
   const [deliveryOn, setDeliveryOn] = useState(false);
+
+  // Deal & payment plan (filled once the price is negotiated)
+  const [finalAmount, setFinalAmount] = useState<number>(0);
+  const [installments, setInstallments] = useState<PaymentInstallment[]>(() =>
+    defaultInstallments.map((i) => ({ ...i, id: crypto.randomUUID() }))
+  );
 
   // New quotes take the overhead numbers from app settings; saved quotes keep theirs.
   const { data: appSettings } = useAppSettings();
@@ -123,6 +144,8 @@ export default function QuotationEditor() {
     setData(loaded);
     setFittingsOn(loaded.fittings > 0);
     setDeliveryOn(loaded.delivery > 0);
+    setFinalAmount(existing.final_amount ?? 0);
+    if (existing.payment_plan?.length) setInstallments(existing.payment_plan);
   }, [existing]);
 
   const effectiveData: QuoteData = {
@@ -145,6 +168,8 @@ export default function QuotationEditor() {
         status,
         valid_until: validUntil || null,
         notes: notes || null,
+        final_amount: finalAmount > 0 ? finalAmount : null,
+        payment_plan: installments as unknown as Record<string, unknown>[],
       };
       if (isNew) {
         const { data: inserted, error } = await supabase.from("quotations").insert(row).select("id").single();
@@ -634,6 +659,160 @@ export default function QuotationEditor() {
                     <Settings2 className="h-3.5 w-3.5" /> Change in Settings
                   </Link>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Deal & payment plan ── */}
+          <Card className={status === "accepted" ? "border-success/50" : undefined}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Deal & payment plan</CardTitle>
+              <p className="text-xs text-muted-foreground">
+                After final negotiation, enter the agreed price and split it into installments — then print
+                the agreement or draft the email for the client.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Final agreed price (₹)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    placeholder={totals.total > 0 ? `quote total ${Math.round(totals.total)}` : "0"}
+                    value={finalAmount || ""}
+                    onChange={(e) => setFinalAmount(num(e.target.value))}
+                  />
+                </div>
+                {totals.total > 0 && finalAmount === 0 && (
+                  <div className="flex items-end pb-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFinalAmount(Math.round(totals.total))}
+                    >
+                      Use quote total ({formatINR(totals.total)})
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Installments</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() =>
+                      setInstallments((list) => [...list, { id: crypto.randomUUID(), label: "", pct: 0 }])
+                    }
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add installment
+                  </Button>
+                </div>
+                {installments.map((inst) => (
+                  <div key={inst.id} className="grid grid-cols-[1fr_80px_110px_36px] items-center gap-2">
+                    <Input
+                      placeholder="e.g. On delivery"
+                      value={inst.label}
+                      onChange={(e) =>
+                        setInstallments((list) =>
+                          list.map((i) => (i.id === inst.id ? { ...i, label: e.target.value } : i))
+                        )
+                      }
+                    />
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        inputMode="decimal"
+                        className="pr-6"
+                        value={inst.pct || ""}
+                        onChange={(e) =>
+                          setInstallments((list) =>
+                            list.map((i) => (i.id === inst.id ? { ...i, pct: num(e.target.value) } : i))
+                          )
+                        }
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        %
+                      </span>
+                    </div>
+                    <p className="text-right text-sm font-medium tabular-nums">
+                      {formatINR(installmentAmount(finalAmount, inst.pct))}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                      onClick={() => setInstallments((list) => list.filter((i) => i.id !== inst.id))}
+                      aria-label="Remove installment"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                {(() => {
+                  const pctSum = installments.reduce((s, i) => s + i.pct, 0);
+                  return (
+                    <p
+                      className={cn(
+                        "text-right text-xs",
+                        Math.abs(pctSum - 100) < 0.01 ? "text-muted-foreground" : "font-medium text-destructive"
+                      )}
+                    >
+                      Total: {pctSum}%{Math.abs(pctSum - 100) >= 0.01 && " — should add up to 100%"}
+                    </p>
+                  );
+                })()}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  disabled={finalAmount <= 0}
+                  onClick={() =>
+                    openAgreementPrintView({
+                      quoteNumber: existing?.quote_number ?? null,
+                      projectTitle,
+                      clientName,
+                      finalAmount,
+                      installments,
+                      notes,
+                      validUntil: validUntil || null,
+                    })
+                  }
+                >
+                  <Printer className="h-4 w-4" /> Print / Save as PDF
+                </Button>
+                <Button type="button" variant="outline" className="gap-2" disabled={finalAmount <= 0} asChild>
+                  <a
+                    href={
+                      finalAmount > 0
+                        ? buildAgreementEmail(
+                            {
+                              quoteNumber: existing?.quote_number ?? null,
+                              projectTitle,
+                              clientName,
+                              finalAmount,
+                              installments,
+                              notes,
+                            },
+                            clients.find((c) => c.id === clientId)?.email
+                          )
+                        : undefined
+                    }
+                  >
+                    <Mail className="h-4 w-4" /> Draft email
+                  </a>
+                </Button>
               </div>
             </CardContent>
           </Card>

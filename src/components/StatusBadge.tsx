@@ -6,6 +6,7 @@ const styles: Record<string, string> = {
   new_lead: "bg-blue-100 text-blue-800 hover:bg-blue-100",
   contacted: "bg-violet-100 text-violet-800 hover:bg-violet-100",
   quote_sent: "bg-amber-100 text-amber-800 hover:bg-amber-100",
+  deal_closed: "bg-teal-100 text-teal-800 hover:bg-teal-100",
   client: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
   lost: "bg-zinc-100 text-zinc-600 hover:bg-zinc-100",
   // Quotes
@@ -27,6 +28,7 @@ const labels: Record<string, string> = {
   new_lead: "New lead",
   contacted: "Contacted",
   quote_sent: "Quote sent",
+  deal_closed: "Deal closed",
   client: "Client",
   lost: "Lost",
   draft: "Draft",

@@ -7,29 +7,47 @@ export interface Profile {
   role: AppRole;
 }
 
-export type ClientStatus = "new_lead" | "contacted" | "quote_sent" | "client" | "lost";
+export type ClientStatus =
+  | "new_lead"
+  | "contacted"
+  | "quote_sent"
+  | "deal_closed"
+  | "in_progress"
+  | "completed"
+  | "lost"
+  /** legacy status from v1 rows — no longer offered in forms */
+  | "client";
 
 export interface Client {
   id: string;
   name: string;
+  company: string | null;
   contact_person: string | null;
   phone: string | null;
+  whatsapp: string | null;
   email: string | null;
   address: string | null;
   city: string | null;
   status: ClientStatus;
   source: string | null;
+  work_type: string | null;
+  estimated_value: number | null;
+  follow_up_date: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type PayCycle = "daily" | "weekly" | "monthly";
 
 export interface Labourer {
   id: string;
   name: string;
   phone: string | null;
   skill: string | null;
+  /** wage per pay cycle (₹/day, ₹/week or ₹/month) */
   daily_wage: number;
+  pay_cycle: PayCycle;
   joining_date: string | null;
   is_active: boolean;
   notes: string | null;
@@ -115,6 +133,13 @@ export interface QuoteData {
   };
 }
 
+/** One installment of the negotiated payment plan, e.g. "Advance" @ 50%. */
+export interface PaymentInstallment {
+  id: string;
+  label: string;
+  pct: number;
+}
+
 export interface Quotation {
   id: string;
   quote_number: number;
@@ -125,6 +150,9 @@ export interface Quotation {
   subtotal: number;
   gst_pct: number;
   total: number;
+  /** final negotiated price — null until the deal is closed */
+  final_amount: number | null;
+  payment_plan: PaymentInstallment[];
   status: QuoteStatus;
   valid_until: string | null;
   notes: string | null;

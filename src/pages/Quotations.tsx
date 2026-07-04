@@ -116,7 +116,12 @@ export default function Quotations() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <p className="font-semibold">{formatINR(quote.total)}</p>
+                    <div className="text-right">
+                      <p className="font-semibold">{formatINR(quote.final_amount ?? quote.total)}</p>
+                      {quote.final_amount != null && (
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-success">agreed</p>
+                      )}
+                    </div>
                     <StatusBadge status={quote.status} />
                   </div>
                 </CardContent>

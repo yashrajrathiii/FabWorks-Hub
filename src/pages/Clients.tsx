@@ -27,7 +27,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "@/components/StatusBadge";
 import { toast } from "sonner";
-import { Plus, Search, Phone, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Plus, Search, Phone, Pencil, Trash2, Loader2, MessageCircle, CalendarClock } from "lucide-react";
+import { formatINR, formatDate, toLocalDateString } from "@/lib/format";
 import type { Client, ClientStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -36,19 +37,36 @@ const statusFilters: { value: ClientStatus | "all"; label: string }[] = [
   { value: "new_lead", label: "New leads" },
   { value: "contacted", label: "Contacted" },
   { value: "quote_sent", label: "Quote sent" },
-  { value: "client", label: "Clients" },
+  { value: "deal_closed", label: "Deal closed" },
+  { value: "in_progress", label: "In progress" },
+  { value: "completed", label: "Completed" },
+  { value: "lost", label: "Lost" },
+];
+
+const pipelineOptions: { value: ClientStatus; label: string }[] = [
+  { value: "new_lead", label: "New lead" },
+  { value: "contacted", label: "Contacted" },
+  { value: "quote_sent", label: "Quote sent" },
+  { value: "deal_closed", label: "Deal closed (advance received)" },
+  { value: "in_progress", label: "In progress (materials / fabrication)" },
+  { value: "completed", label: "Completed" },
   { value: "lost", label: "Lost" },
 ];
 
 const emptyForm = {
   name: "",
+  company: "",
   contact_person: "",
   phone: "",
+  whatsapp: "",
   email: "",
   city: "",
   address: "",
   status: "new_lead" as ClientStatus,
   source: "",
+  work_type: "",
+  estimated_value: "",
+  follow_up_date: "",
   notes: "",
 };
 
@@ -77,12 +95,17 @@ export default function Clients() {
     mutationFn: async (payload: ClientForm) => {
       const row = {
         ...payload,
+        company: payload.company || null,
         contact_person: payload.contact_person || null,
         phone: payload.phone || null,
+        whatsapp: payload.whatsapp || null,
         email: payload.email || null,
         city: payload.city || null,
         address: payload.address || null,
         source: payload.source || null,
+        work_type: payload.work_type || null,
+        estimated_value: payload.estimated_value ? Number(payload.estimated_value) : null,
+        follow_up_date: payload.follow_up_date || null,
         notes: payload.notes || null,
       };
       if (editing) {
@@ -122,6 +145,7 @@ export default function Clients() {
       const matchesSearch =
         !q ||
         c.name.toLowerCase().includes(q) ||
+        (c.company ?? "").toLowerCase().includes(q) ||
         (c.phone ?? "").includes(q) ||
         (c.city ?? "").toLowerCase().includes(q);
       return matchesFilter && matchesSearch;
@@ -138,13 +162,18 @@ export default function Clients() {
     setEditing(client);
     setForm({
       name: client.name,
+      company: client.company ?? "",
       contact_person: client.contact_person ?? "",
       phone: client.phone ?? "",
+      whatsapp: client.whatsapp ?? "",
       email: client.email ?? "",
       city: client.city ?? "",
       address: client.address ?? "",
       status: client.status,
       source: client.source ?? "",
+      work_type: client.work_type ?? "",
+      estimated_value: client.estimated_value != null ? String(client.estimated_value) : "",
+      follow_up_date: client.follow_up_date ?? "",
       notes: client.notes ?? "",
     });
     setDialogOpen(true);
@@ -205,18 +234,53 @@ export default function Clients() {
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{client.name}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {[client.contact_person, client.city].filter(Boolean).join(" · ") || "—"}
+                      {[client.company, client.city].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </div>
                   <StatusBadge status={client.status} />
                 </div>
-                {client.phone && (
-                  <a
-                    href={`tel:${client.phone}`}
-                    className="flex items-center gap-2 text-sm text-primary"
+                {(client.work_type || client.estimated_value != null) && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {client.work_type}
+                    {client.work_type && client.estimated_value != null && " · "}
+                    {client.estimated_value != null && (
+                      <span className="font-medium text-foreground">
+                        est. {formatINR(client.estimated_value)}
+                      </span>
+                    )}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  {client.phone && (
+                    <a href={`tel:${client.phone}`} className="flex items-center gap-1.5 text-sm text-primary">
+                      <Phone className="h-3.5 w-3.5" /> {client.phone}
+                    </a>
+                  )}
+                  {(client.whatsapp || client.phone) && (
+                    <a
+                      href={`https://wa.me/${(client.whatsapp || client.phone || "").replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 text-sm text-success"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                    </a>
+                  )}
+                </div>
+                {client.follow_up_date && client.status !== "lost" && client.status !== "completed" && (
+                  <span
+                    className={cn(
+                      "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium",
+                      client.follow_up_date <= toLocalDateString()
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-muted text-muted-foreground"
+                    )}
                   >
-                    <Phone className="h-3.5 w-3.5" /> {client.phone}
-                  </a>
+                    <CalendarClock className="h-3 w-3" />
+                    {client.follow_up_date <= toLocalDateString()
+                      ? `Follow up due — ${formatDate(client.follow_up_date)}`
+                      : `Follow-up ${formatDate(client.follow_up_date)}`}
+                  </span>
                 )}
                 {client.notes && (
                   <p className="line-clamp-2 text-xs text-muted-foreground">{client.notes}</p>
@@ -253,9 +317,13 @@ export default function Clients() {
             }}
           >
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="name">Name *</Label>
                 <Input id="name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="company">Company</Label>
+                <Input id="company" placeholder="e.g. ABC Builders" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="contact_person">Contact person</Label>
@@ -266,6 +334,10 @@ export default function Clients() {
                 <Input id="phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="whatsapp">WhatsApp (if different)</Label>
+                <Input id="whatsapp" type="tel" placeholder="defaults to phone" value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               </div>
@@ -273,22 +345,35 @@ export default function Clients() {
                 <Label htmlFor="city">City</Label>
                 <Input id="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="work_type">Type of work</Label>
+                <Input id="work_type" placeholder="e.g. Factory shed, gate, railing" value={form.work_type} onChange={(e) => setForm({ ...form, work_type: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="estimated_value">Estimated value (₹)</Label>
+                <Input id="estimated_value" type="number" min="0" inputMode="decimal" value={form.estimated_value} onChange={(e) => setForm({ ...form, estimated_value: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="follow_up_date">Next follow-up</Label>
+                <Input id="follow_up_date" type="date" value={form.follow_up_date} onChange={(e) => setForm({ ...form, follow_up_date: e.target.value })} />
+              </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="address">Address</Label>
                 <Input id="address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label>Status</Label>
+                <Label>Pipeline stage</Label>
                 <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as ClientStatus })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="new_lead">New lead</SelectItem>
-                    <SelectItem value="contacted">Contacted</SelectItem>
-                    <SelectItem value="quote_sent">Quote sent</SelectItem>
-                    <SelectItem value="client">Client</SelectItem>
-                    <SelectItem value="lost">Lost</SelectItem>
+                    {pipelineOptions.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                    {form.status === "client" && <SelectItem value="client">Client (legacy)</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>

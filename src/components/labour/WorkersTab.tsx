@@ -18,15 +18,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Plus, Pencil, Phone, Loader2 } from "lucide-react";
 import { formatINR, formatDate, toLocalDateString } from "@/lib/format";
-import type { Labourer } from "@/types";
+import type { Labourer, PayCycle } from "@/types";
 
 const skills = ["welder", "fitter", "helper", "painter", "grinder", "supervisor", "other"];
+
+const payCycles: { value: PayCycle; label: string; unit: string }[] = [
+  { value: "daily", label: "Daily", unit: "day" },
+  { value: "weekly", label: "Weekly", unit: "week" },
+  { value: "monthly", label: "Monthly", unit: "month" },
+];
+
+export const payCycleUnit = (cycle: PayCycle) => payCycles.find((c) => c.value === cycle)?.unit ?? "day";
 
 const emptyForm = {
   name: "",
   phone: "",
   skill: "helper",
   daily_wage: "",
+  pay_cycle: "daily" as PayCycle,
   joining_date: toLocalDateString(),
   is_active: true,
   notes: "",
@@ -61,6 +70,7 @@ export default function WorkersTab() {
         phone: payload.phone || null,
         skill: payload.skill,
         daily_wage: Number(payload.daily_wage) || 0,
+        pay_cycle: payload.pay_cycle,
         joining_date: payload.joining_date || null,
         is_active: payload.is_active,
         notes: payload.notes || null,
@@ -95,6 +105,7 @@ export default function WorkersTab() {
       phone: worker.phone ?? "",
       skill: worker.skill ?? "other",
       daily_wage: String(worker.daily_wage ?? ""),
+      pay_cycle: worker.pay_cycle ?? "daily",
       joining_date: worker.joining_date ?? "",
       is_active: worker.is_active,
       notes: worker.notes ?? "",
@@ -137,7 +148,9 @@ export default function WorkersTab() {
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{formatINR(worker.daily_wage)}/day</span>
+                  <span className="font-medium">
+                    {formatINR(worker.daily_wage)}/{payCycleUnit(worker.pay_cycle ?? "daily")}
+                  </span>
                   {worker.phone && (
                     <a href={`tel:${worker.phone}`} className="flex items-center gap-1.5 text-primary">
                       <Phone className="h-3.5 w-3.5" /> {worker.phone}
@@ -192,7 +205,22 @@ export default function WorkersTab() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="w-wage">Daily wage (₹)</Label>
+                <Label>Pay cycle</Label>
+                <Select value={form.pay_cycle} onValueChange={(v) => setForm({ ...form, pay_cycle: v as PayCycle })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {payCycles.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="w-wage">Wage (₹/{payCycleUnit(form.pay_cycle)})</Label>
                 <Input
                   id="w-wage"
                   type="number"
@@ -202,7 +230,7 @@ export default function WorkersTab() {
                   onChange={(e) => setForm({ ...form, daily_wage: e.target.value })}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="col-span-2 space-y-1.5 sm:col-span-1">
                 <Label htmlFor="w-joined">Joining date</Label>
                 <Input
                   id="w-joined"

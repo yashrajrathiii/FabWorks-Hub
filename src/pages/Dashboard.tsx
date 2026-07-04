@@ -10,21 +10,23 @@ import type { Client, WorkerTask, Labourer } from "@/types";
 
 interface DashboardStats {
   activeLeads: number;
-  totalClients: number;
+  ongoingProjects: number;
   presentToday: number;
   activeWorkers: number;
   pendingQuotes: number;
   recentLeads: Client[];
+  followUps: Client[];
   openTasks: (WorkerTask & { labourers: Pick<Labourer, "name"> | null })[];
 }
 
 const emptyStats: DashboardStats = {
   activeLeads: 0,
-  totalClients: 0,
+  ongoingProjects: 0,
   presentToday: 0,
   activeWorkers: 0,
   pendingQuotes: 0,
   recentLeads: [],
+  followUps: [],
   openTasks: [],
 };
 
@@ -32,23 +34,25 @@ async function fetchStats(): Promise<DashboardStats> {
   if (!isSupabaseConfigured) return emptyStats;
   const today = toLocalDateString();
 
-  const [leads, clients, attendance, workers, quotes, recentLeads, openTasks] = await Promise.all([
+  const [leads, projects, attendance, workers, quotes, recentLeads, followUps, openTasks] = await Promise.all([
     supabase.from("clients").select("id", { count: "exact", head: true }).in("status", ["new_lead", "contacted", "quote_sent"]),
-    supabase.from("clients").select("id", { count: "exact", head: true }).eq("status", "client"),
+    supabase.from("clients").select("id", { count: "exact", head: true }).in("status", ["deal_closed", "in_progress"]),
     supabase.from("attendance").select("id", { count: "exact", head: true }).eq("date", today).in("status", ["present", "half_day"]),
     supabase.from("labourers").select("id", { count: "exact", head: true }).eq("is_active", true),
     supabase.from("quotations").select("id", { count: "exact", head: true }).in("status", ["draft", "sent"]),
     supabase.from("clients").select("*").in("status", ["new_lead", "contacted", "quote_sent"]).order("created_at", { ascending: false }).limit(5),
+    supabase.from("clients").select("*").lte("follow_up_date", today).not("status", "in", "(lost,completed)").order("follow_up_date").limit(5),
     supabase.from("worker_tasks").select("*, labourers(name)").neq("status", "completed").order("due_date", { ascending: true, nullsFirst: false }).limit(5),
   ]);
 
   return {
     activeLeads: leads.count ?? 0,
-    totalClients: clients.count ?? 0,
+    ongoingProjects: projects.count ?? 0,
     presentToday: attendance.count ?? 0,
     activeWorkers: workers.count ?? 0,
     pendingQuotes: quotes.count ?? 0,
     recentLeads: (recentLeads.data as Client[]) ?? [],
+    followUps: (followUps.data as Client[]) ?? [],
     openTasks: (openTasks.data as DashboardStats["openTasks"]) ?? [],
   };
 }
@@ -58,7 +62,7 @@ export default function Dashboard() {
 
   const cards = [
     { label: "Active leads", value: stats.activeLeads, icon: TrendingUp, to: "/clients" },
-    { label: "Clients", value: stats.totalClients, icon: Users, to: "/clients" },
+    { label: "Ongoing projects", value: stats.ongoingProjects, icon: Users, to: "/clients" },
     {
       label: "Present today",
       value: `${stats.presentToday}/${stats.activeWorkers}`,
@@ -95,6 +99,30 @@ export default function Dashboard() {
           </Link>
         ))}
       </div>
+
+      {stats.followUps.length > 0 && (
+        <Card className="border-warning/40">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Follow-ups due</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {stats.followUps.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{c.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {[c.company, c.phone].filter(Boolean).join(" · ") || "—"}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-xs font-medium text-destructive">{formatDate(c.follow_up_date)}</span>
+                  <StatusBadge status={c.status} />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
