@@ -21,7 +21,7 @@ const pageTitles: Record<string, string> = {
 };
 
 export default function AppLayout() {
-  const { profile, signOut } = useAuth();
+  const { signOut } = useAuth();
   const location = useLocation();
   const title =
     pageTitles[location.pathname] ??
@@ -77,12 +77,11 @@ export default function AppLayout() {
           </NavLink>
         </div>
         <div className="border-t border-sidebar-border p-4">
-          <p className="truncate text-xs font-medium text-white">{profile?.full_name || profile?.email}</p>
           <Button
             variant="ghost"
             size="sm"
             onClick={signOut}
-            className="mt-2 w-full justify-start gap-2 px-2 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-white"
+            className="w-full justify-start gap-2 px-2 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-white"
           >
             <LogOut className="h-4 w-4" /> Sign out
           </Button>
