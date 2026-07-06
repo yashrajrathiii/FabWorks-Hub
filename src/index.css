@@ -2,98 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-/* FabWorks Hub design tokens — clean, modern, light-first with a forged-orange accent. */
+/* FabWorks Hub design tokens — Horizon UI inspired dark theme.
+   Deep navy ground (#0b1437), navy cards (#111c44), indigo/purple brand
+   (#4318FF–#7551FF), muted blue-gray secondary text (#A3AED0). Dark-only. */
 @layer base {
   :root {
-    --background: 40 20% 97%;
-    --foreground: 24 10% 12%;
+    color-scheme: dark;
 
-    --card: 0 0% 100%;
-    --card-foreground: 24 10% 12%;
+    --background: 228 67% 13%;        /* #0b1437 navy-900 */
+    --foreground: 0 0% 100%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 24 10% 12%;
+    --card: 227 60% 17%;              /* #111c44 navy-800 */
+    --card-foreground: 0 0% 100%;
 
-    --primary: 21 90% 48%;
+    --popover: 227 60% 17%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 252 100% 66%;          /* #7551FF brand */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 30 12% 92%;
-    --secondary-foreground: 24 10% 20%;
+    --secondary: 228 47% 20%;         /* #1b254b navy-700 */
+    --secondary-foreground: 225 32% 85%;
 
-    --muted: 30 12% 93%;
-    --muted-foreground: 25 6% 45%;
+    --muted: 228 47% 20%;
+    --muted-foreground: 225 32% 73%;  /* #A3AED0 */
 
-    --accent: 27 96% 94%;
-    --accent-foreground: 21 80% 30%;
+    --accent: 251 60% 27%;            /* deep purple tint — icon chips, banners */
+    --accent-foreground: 252 100% 84%;
 
-    --destructive: 0 72% 45%;
+    --destructive: 5 82% 62%;         /* #EE5D50 */
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 60% 32%;
+    --success: 158 99% 36%;           /* #01B574 */
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 44%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 36 100% 64%;           /* #FFB547 */
+    --warning-foreground: 228 67% 13%;
 
-    --border: 30 10% 88%;
-    --input: 30 10% 84%;
-    --ring: 21 90% 48%;
+    --border: 228 47% 20%;
+    --input: 228 40% 28%;
+    --ring: 252 100% 66%;
 
-    --radius: 0.625rem;
+    --radius: 0.875rem;
 
-    --sidebar-background: 24 12% 10%;
-    --sidebar-foreground: 30 12% 85%;
-    --sidebar-primary: 21 90% 52%;
+    --sidebar-background: 227 60% 17%;
+    --sidebar-foreground: 225 32% 73%;
+    --sidebar-primary: 251 91% 55%;   /* #4318FF active fill */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 24 10% 16%;
-    --sidebar-accent-foreground: 30 15% 92%;
-    --sidebar-border: 24 10% 18%;
-    --sidebar-ring: 21 90% 52%;
-  }
-
-  .dark {
-    --background: 24 12% 8%;
-    --foreground: 30 12% 92%;
-
-    --card: 24 10% 11%;
-    --card-foreground: 30 12% 92%;
-
-    --popover: 24 10% 11%;
-    --popover-foreground: 30 12% 92%;
-
-    --primary: 21 90% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 24 8% 16%;
-    --secondary-foreground: 30 12% 85%;
-
-    --muted: 24 8% 16%;
-    --muted-foreground: 28 8% 60%;
-
-    --accent: 21 60% 18%;
-    --accent-foreground: 27 96% 85%;
-
-    --destructive: 0 70% 50%;
-    --destructive-foreground: 0 0% 100%;
-
-    --success: 152 55% 40%;
-    --success-foreground: 0 0% 100%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 24 10% 10%;
-
-    --border: 24 8% 20%;
-    --input: 24 8% 24%;
-    --ring: 21 90% 55%;
-
-    --sidebar-background: 24 12% 7%;
-    --sidebar-foreground: 30 12% 85%;
-    --sidebar-primary: 21 90% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 24 10% 14%;
-    --sidebar-accent-foreground: 30 15% 92%;
-    --sidebar-border: 24 10% 16%;
-    --sidebar-ring: 21 90% 55%;
+    --sidebar-accent: 228 47% 22%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 228 47% 22%;
+    --sidebar-ring: 252 100% 66%;
   }
 }
 
@@ -104,7 +63,7 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "cv02", "cv03", "cv04";
+    letter-spacing: -0.01em;
   }
 
   html {

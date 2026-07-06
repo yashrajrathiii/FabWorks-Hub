@@ -53,11 +53,11 @@ export function buildAgreementHtml(input: AgreementInput): string {
   @page { size: A4; margin: 18mm; }
   * { box-sizing: border-box; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1c1917; line-height: 1.55; font-size: 14px; margin: 0; }
-  .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #ea580c; padding-bottom: 14px; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #4318FF; padding-bottom: 14px; }
   .brand { font-size: 22px; font-weight: 800; }
   .brand small { display: block; font-size: 12px; font-weight: 400; color: #78716c; }
   .meta { text-align: right; font-size: 12px; color: #78716c; }
-  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: #ea580c; margin: 26px 0 8px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: #4318FF; margin: 26px 0 8px; }
   .box { border: 1px solid #e7e5e4; border-radius: 8px; padding: 12px 16px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; }
   .grid .k { color: #78716c; font-size: 12px; }
@@ -65,7 +65,7 @@ export function buildAgreementHtml(input: AgreementInput): string {
   th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #78716c; border-bottom: 2px solid #e7e5e4; padding: 8px 10px; }
   td { padding: 9px 10px; border-bottom: 1px solid #f5f5f4; }
   .r { text-align: right; }
-  .total { display: flex; justify-content: space-between; align-items: baseline; background: #ea580c; color: #fff; border-radius: 8px; padding: 12px 18px; margin-top: 14px; }
+  .total { display: flex; justify-content: space-between; align-items: baseline; background: #4318FF; color: #fff; border-radius: 8px; padding: 12px 18px; margin-top: 14px; }
   .total .v { font-size: 22px; font-weight: 700; }
   .sig { display: flex; justify-content: space-between; margin-top: 60px; gap: 40px; }
   .sig div { flex: 1; border-top: 1px solid #a8a29e; padding-top: 6px; font-size: 12px; color: #78716c; }

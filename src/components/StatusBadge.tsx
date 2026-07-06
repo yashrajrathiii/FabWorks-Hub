@@ -1,27 +1,28 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+/* Translucent chips tuned for the dark navy theme. */
 const styles: Record<string, string> = {
   // Client pipeline
-  new_lead: "bg-blue-100 text-blue-800 hover:bg-blue-100",
-  contacted: "bg-violet-100 text-violet-800 hover:bg-violet-100",
-  quote_sent: "bg-amber-100 text-amber-800 hover:bg-amber-100",
-  deal_closed: "bg-teal-100 text-teal-800 hover:bg-teal-100",
-  client: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
-  lost: "bg-zinc-100 text-zinc-600 hover:bg-zinc-100",
+  new_lead: "bg-sky-500/15 text-sky-400 hover:bg-sky-500/15",
+  contacted: "bg-violet-500/15 text-violet-400 hover:bg-violet-500/15",
+  quote_sent: "bg-amber-500/15 text-amber-400 hover:bg-amber-500/15",
+  deal_closed: "bg-teal-500/15 text-teal-400 hover:bg-teal-500/15",
+  client: "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/15",
+  lost: "bg-white/10 text-slate-400 hover:bg-white/10",
   // Quotes
-  draft: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100",
-  sent: "bg-blue-100 text-blue-800 hover:bg-blue-100",
-  accepted: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
-  rejected: "bg-red-100 text-red-700 hover:bg-red-100",
+  draft: "bg-white/10 text-slate-300 hover:bg-white/10",
+  sent: "bg-sky-500/15 text-sky-400 hover:bg-sky-500/15",
+  accepted: "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/15",
+  rejected: "bg-red-500/15 text-red-400 hover:bg-red-500/15",
   // Tasks
-  pending: "bg-zinc-100 text-zinc-700 hover:bg-zinc-100",
-  in_progress: "bg-amber-100 text-amber-800 hover:bg-amber-100",
-  completed: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
+  pending: "bg-white/10 text-slate-300 hover:bg-white/10",
+  in_progress: "bg-amber-500/15 text-amber-400 hover:bg-amber-500/15",
+  completed: "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/15",
   // Attendance
-  present: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
-  half_day: "bg-amber-100 text-amber-800 hover:bg-amber-100",
-  absent: "bg-red-100 text-red-700 hover:bg-red-100",
+  present: "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/15",
+  half_day: "bg-amber-500/15 text-amber-400 hover:bg-amber-500/15",
+  absent: "bg-red-500/15 text-red-400 hover:bg-red-500/15",
 };
 
 const labels: Record<string, string> = {
