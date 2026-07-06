@@ -22,3 +22,14 @@ export const supabase = createClient(
     },
   }
 );
+
+/**
+ * Throwaway client for creating new accounts from the Users settings tab.
+ * signUp() signs in the account it creates — doing it on a non-persistent
+ * client keeps the admin's own session untouched.
+ */
+export function createSignupClient() {
+  return createClient(supabaseUrl ?? "https://placeholder.supabase.co", supabaseAnonKey ?? "placeholder-key", {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}

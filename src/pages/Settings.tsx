@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAppSettings, useSaveAppSettings, defaultSettings } from "@/hooks/useAppSettings";
@@ -7,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import UsersTab from "@/components/settings/UsersTab";
 import { toast } from "sonner";
 import { Loader2, Save, KeyRound, UserRound } from "lucide-react";
 
@@ -220,15 +222,21 @@ function AccountTab() {
 }
 
 export default function Settings() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") ?? "overhead";
   return (
     <div className="mx-auto max-w-2xl">
-      <Tabs defaultValue="overhead">
-        <TabsList className="mb-4 grid w-full grid-cols-2 sm:w-auto sm:inline-grid">
+      <Tabs value={tab} onValueChange={(v) => setSearchParams(v === "overhead" ? {} : { tab: v }, { replace: true })}>
+        <TabsList className="mb-4 grid w-full grid-cols-3 sm:w-auto sm:inline-grid">
           <TabsTrigger value="overhead">Overhead</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
         </TabsList>
         <TabsContent value="overhead">
           <OverheadTab />
+        </TabsContent>
+        <TabsContent value="users">
+          <UsersTab />
         </TabsContent>
         <TabsContent value="account">
           <AccountTab />
