@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,28 +14,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import StatusBadge from "@/components/StatusBadge";
 import { toast } from "sonner";
-import { Plus, Loader2, CheckCircle2, PlayCircle, Trash2 } from "lucide-react";
+import { Plus, Loader2, CheckCircle2, Trash2 } from "lucide-react";
 import { useLabourers } from "@/components/labour/WorkersTab";
 import { formatDate, toLocalDateString } from "@/lib/format";
-import type { Labourer, TaskPeriod, TaskStatus, WorkerTask } from "@/types";
+import type { Client, Labourer, WorkerTask } from "@/types";
 import { cn } from "@/lib/utils";
 
-type TaskWithWorker = WorkerTask & { labourers: Pick<Labourer, "name"> | null };
+type TaskWithWorker = WorkerTask & {
+  labourers: Pick<Labourer, "name"> | null;
+  clients?: Pick<Client, "name"> | null;
+};
 
 const emptyForm = {
   labourer_id: "",
+  client_id: "",
   title: "",
   description: "",
-  period: "weekly" as TaskPeriod,
   start_date: toLocalDateString(),
   due_date: "",
 };
 
-const filters: { value: TaskStatus | "all"; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
+type TaskFilter = "all" | "in_progress" | "completed";
+
+const filters: { value: TaskFilter; label: string }[] = [
+  { value: "all", label: "All tasks" },
   { value: "in_progress", label: "In progress" },
   { value: "completed", label: "Completed" },
 ];
@@ -43,7 +46,7 @@ const filters: { value: TaskStatus | "all"; label: string }[] = [
 export default function TasksTab() {
   const queryClient = useQueryClient();
   const { data: workers = [] } = useLabourers(false);
-  const [filter, setFilter] = useState<TaskStatus | "all">("all");
+  const [filter, setFilter] = useState<TaskFilter>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
@@ -51,12 +54,29 @@ export default function TasksTab() {
     queryKey: ["worker_tasks"],
     queryFn: async () => {
       if (!isSupabaseConfigured) return [];
-      const { data, error } = await supabase
+      // clients(name) join needs the client_id migration; fall back if it isn't run yet
+      let res = await supabase
         .from("worker_tasks")
-        .select("*, labourers(name)")
+        .select("*, labourers(name), clients(name)")
         .order("created_at", { ascending: false });
+      if (res.error) {
+        res = await supabase
+          .from("worker_tasks")
+          .select("*, labourers(name)")
+          .order("created_at", { ascending: false });
+      }
+      if (res.error) throw res.error;
+      return res.data as TaskWithWorker[];
+    },
+  });
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients-for-tasks"],
+    queryFn: async () => {
+      if (!isSupabaseConfigured) return [];
+      const { data, error } = await supabase.from("clients").select("id, name").order("name");
       if (error) throw error;
-      return data as TaskWithWorker[];
+      return data as Pick<Client, "id" | "name">[];
     },
   });
 
@@ -66,14 +86,17 @@ export default function TasksTab() {
         labourer_id: payload.labourer_id,
         title: payload.title,
         description: payload.description || null,
-        period: payload.period,
         start_date: payload.start_date,
         due_date: payload.due_date || null,
+        status: "in_progress",
+        // only send client_id when chosen so inserts keep working pre-migration
+        ...(payload.client_id ? { client_id: payload.client_id } : {}),
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["worker_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["client-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success("Task assigned");
       setDialogOpen(false);
@@ -82,17 +105,19 @@ export default function TasksTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const statusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
+  const completeMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("worker_tasks")
-        .update({ status, completed_at: status === "completed" ? new Date().toISOString() : null })
+        .update({ status: "completed", completed_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["worker_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["client-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Task completed");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -104,18 +129,67 @@ export default function TasksTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["worker_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["client-tasks"] });
       toast.success("Task deleted");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const filtered = useMemo(
-    () => tasks.filter((t) => filter === "all" || t.status === filter),
-    [tasks, filter]
-  );
+  // Anything not completed counts as in progress — tasks start the moment they're assigned.
+  const inProgress = tasks.filter((t) => t.status !== "completed");
+  const completed = tasks.filter((t) => t.status === "completed");
+
+  function taskCard(task: TaskWithWorker) {
+    const isDone = task.status === "completed";
+    return (
+      <Card key={task.id} className={isDone ? "opacity-70" : undefined}>
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium">{task.title}</p>
+              {task.clients?.name && (
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+                  {task.clients.name}
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {task.labourers?.name ?? "Unassigned"} · {formatDate(task.start_date)}
+              {task.due_date ? ` → due ${formatDate(task.due_date)}` : ""}
+              {isDone && task.completed_at ? ` · completed ${formatDate(task.completed_at)}` : ""}
+            </p>
+            {task.description && (
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.description}</p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {!isDone && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs text-success hover:text-success"
+                onClick={() => completeMutation.mutate(task.id)}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" /> Done
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              onClick={() => deleteMutation.mutate(task.id)}
+              aria-label="Delete task"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2 overflow-x-auto">
           {filters.map((f) => (
@@ -142,70 +216,44 @@ export default function TasksTab() {
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center text-sm text-muted-foreground">
-            {workers.length === 0
-              ? "Add workers first, then assign them weekly or monthly tasks."
-              : "No tasks here yet."}
-          </CardContent>
-        </Card>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((task) => (
-            <Card key={task.id}>
-              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium">{task.title}</p>
-                    <StatusBadge status={task.status} />
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      {task.period}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {task.labourers?.name ?? "Unassigned"} · {formatDate(task.start_date)}
-                    {task.due_date ? ` → ${formatDate(task.due_date)}` : ""}
-                  </p>
-                  {task.description && (
-                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.description}</p>
-                  )}
-                </div>
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {task.status === "pending" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs"
-                      onClick={() => statusMutation.mutate({ id: task.id, status: "in_progress" })}
-                    >
-                      <PlayCircle className="h-3.5 w-3.5" /> Start
-                    </Button>
-                  )}
-                  {task.status !== "completed" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs text-success hover:text-success"
-                      onClick={() => statusMutation.mutate({ id: task.id, status: "completed" })}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Done
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => deleteMutation.mutate(task.id)}
-                    aria-label="Delete task"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <>
+          {filter !== "completed" && (
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">
+                In progress {inProgress.length > 0 && `(${inProgress.length})`}
+              </h3>
+              {inProgress.length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                    {workers.length === 0
+                      ? "Add workers first, then assign them tasks."
+                      : "No tasks in progress. Assign one to get started."}
+                  </CardContent>
+                </Card>
+              ) : (
+                inProgress.map(taskCard)
+              )}
+            </section>
+          )}
+
+          {filter !== "in_progress" && (
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">
+                Completed {completed.length > 0 && `(${completed.length})`}
+              </h3>
+              {completed.length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                    Nothing completed yet — tasks land here when you mark them done.
+                  </CardContent>
+                </Card>
+              ) : (
+                completed.map(taskCard)
+              )}
+            </section>
+          )}
+        </>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -240,6 +288,25 @@ export default function TasksTab() {
               </Select>
             </div>
             <div className="space-y-1.5">
+              <Label>Client / project (optional)</Label>
+              <Select
+                value={form.client_id || "none"}
+                onValueChange={(v) => setForm({ ...form, client_id: v === "none" ? "" : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No client" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No client</SelectItem>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="t-title">Task *</Label>
               <Input
                 id="t-title"
@@ -258,20 +325,7 @@ export default function TasksTab() {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label>Repeat</Label>
-                <Select value={form.period} onValueChange={(v) => setForm({ ...form, period: v as TaskPeriod })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="t-start">Start</Label>
                 <Input

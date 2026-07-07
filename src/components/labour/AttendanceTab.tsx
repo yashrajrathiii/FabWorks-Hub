@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useLabourers } from "@/components/labour/WorkersTab";
+import WorkerReportDialog from "@/components/labour/WorkerReportDialog";
 import { toLocalDateString } from "@/lib/format";
 import type { AttendanceRecord, AttendanceStatus, Labourer } from "@/types";
 import { cn } from "@/lib/utils";
@@ -19,9 +20,15 @@ const statusOptions: { value: AttendanceStatus; label: string; activeClass: stri
 
 const toDateString = toLocalDateString;
 
+const formatMarkedTime = (iso: string) =>
+  new Date(iso)
+    .toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })
+    .toUpperCase();
+
 export default function AttendanceTab() {
   const queryClient = useQueryClient();
   const [date, setDate] = useState(toDateString(new Date()));
+  const [reportWorker, setReportWorker] = useState<Labourer | null>(null);
   const { data: workers = [], isLoading: workersLoading } = useLabourers(false);
 
   const monthStart = date.slice(0, 8) + "01";
@@ -43,7 +50,11 @@ export default function AttendanceTab() {
     mutationFn: async ({ labourerId, status }: { labourerId: string; status: AttendanceStatus }) => {
       const { error } = await supabase
         .from("attendance")
-        .upsert({ labourer_id: labourerId, date, status }, { onConflict: "labourer_id,date" });
+        .upsert(
+          // created_at doubles as "marked at" — refreshed on every (re-)mark
+          { labourer_id: labourerId, date, status, created_at: new Date().toISOString() },
+          { onConflict: "labourer_id,date" }
+        );
       if (error) throw error;
     },
     onSuccess: () => {
@@ -59,33 +70,6 @@ export default function AttendanceTab() {
     const d = new Date(date + "T00:00:00");
     d.setDate(d.getDate() + days);
     setDate(toDateString(d));
-  }
-
-  function countDays(rows: AttendanceRecord[]) {
-    const present = rows.filter((r) => r.status === "present").length;
-    const half = rows.filter((r) => r.status === "half_day").length;
-    return present + half * 0.5;
-  }
-
-  /** Mon–Sun window containing the selected date (weekly workers are usually paid per week). */
-  function weekRange() {
-    const d = new Date(date + "T00:00:00");
-    const day = (d.getDay() + 6) % 7; // 0 = Monday
-    const start = new Date(d);
-    start.setDate(d.getDate() - day);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    return { start: toDateString(start), end: toDateString(end) };
-  }
-
-  function summaryFor(worker: Labourer) {
-    const rows = records.filter((r) => r.labourer_id === worker.id);
-    if (worker.pay_cycle === "monthly") {
-      return `${countDays(rows)} days this month`;
-    }
-    const { start, end } = weekRange();
-    const weekRows = rows.filter((r) => r.date >= start && r.date <= end);
-    return `${countDays(weekRows)} days this week`;
   }
 
   const isToday = date === toDateString(new Date());
@@ -134,19 +118,45 @@ export default function AttendanceTab() {
           {workers.map((worker) => {
             const record = todaysRecords.get(worker.id);
             return (
-              <Card key={worker.id}>
+              <Card
+                key={worker.id}
+                role="button"
+                tabIndex={0}
+                className="cursor-pointer transition-colors hover:border-primary/40"
+                onClick={() => setReportWorker(worker)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setReportWorker(worker);
+                  }
+                }}
+              >
                 <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
+                  <div className="min-w-0 text-left">
                     <p className="truncate font-medium">{worker.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      <span className="capitalize">{worker.skill ?? "—"}</span> · {summaryFor(worker)}
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="capitalize">{worker.skill ?? "—"}</span>
+                      {record && record.status !== "absent" && (
+                        <>
+                          <span
+                            className={cn(
+                              "h-2 w-2 rounded-full",
+                              record.status === "present" ? "bg-success" : "bg-warning"
+                            )}
+                          />
+                          <span>{formatMarkedTime(record.created_at)}</span>
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="flex gap-2">
                     {statusOptions.map((opt) => (
                       <button
                         key={opt.value}
-                        onClick={() => markMutation.mutate({ labourerId: worker.id, status: opt.value })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markMutation.mutate({ labourerId: worker.id, status: opt.value });
+                        }}
                         className={cn(
                           "flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors sm:flex-none",
                           record?.status === opt.value
@@ -167,14 +177,15 @@ export default function AttendanceTab() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">This month at a glance</CardTitle>
+          <CardTitle className="text-sm">How this works</CardTitle>
         </CardHeader>
         <CardContent className="text-xs text-muted-foreground">
-          Attendance is saved per worker per day — tap a status to mark or change it. Half-days count as
-          0.5. Daily/weekly-paid workers show days for the current week (Mon–Sun); monthly-paid workers
-          show days for the month.
+          Attendance is saved per worker per day — tap a status to mark or change it. Tap anywhere on
+          a worker's card to see their month-by-month attendance report.
         </CardContent>
       </Card>
+
+      <WorkerReportDialog key={reportWorker?.id ?? "none"} worker={reportWorker} onClose={() => setReportWorker(null)} />
     </div>
   );
 }

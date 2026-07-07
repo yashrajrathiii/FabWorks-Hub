@@ -64,6 +64,8 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   overtime_hours: number;
   note: string | null;
+  /** Last time the status was marked/changed (the marking upsert refreshes it). */
+  created_at: string;
 }
 
 export type TaskPeriod = "daily" | "weekly" | "monthly";
@@ -72,6 +74,8 @@ export type TaskStatus = "pending" | "in_progress" | "completed";
 export interface WorkerTask {
   id: string;
   labourer_id: string;
+  /** optional link to the client/project this task is for (added 2026-07-07) */
+  client_id?: string | null;
   title: string;
   description: string | null;
   period: TaskPeriod;
@@ -139,6 +143,8 @@ export interface PaymentInstallment {
   id: string;
   label: string;
   pct: number;
+  /** ticked once the money is actually collected (tracked on the client page) */
+  received?: boolean;
 }
 
 export interface Quotation {

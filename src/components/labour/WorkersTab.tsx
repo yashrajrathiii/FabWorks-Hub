@@ -14,9 +14,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Pencil, Phone, Loader2 } from "lucide-react";
+import { Plus, Pencil, Phone, Loader2, Trash2 } from "lucide-react";
 import { formatINR, formatDate, toLocalDateString } from "@/lib/format";
 import type { Labourer, PayCycle } from "@/types";
 
@@ -87,6 +98,20 @@ export default function WorkersTab() {
       queryClient.invalidateQueries({ queryKey: ["labourers"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast.success(editing ? "Worker updated" : "Worker added");
+      setDialogOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("labourers").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["labourers"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      toast.success("Worker removed");
       setDialogOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -247,7 +272,44 @@ export default function WorkersTab() {
               </div>
               <Switch checked={form.is_active} onCheckedChange={(v) => setForm({ ...form, is_active: v })} />
             </div>
-            <DialogFooter>
+            <DialogFooter className={editing ? "gap-2 sm:justify-between" : undefined}>
+              {editing && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      disabled={deleteMutation.isPending}
+                    >
+                      {deleteMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      Remove
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove {editing.name}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This permanently deletes the worker along with their attendance and task
+                        history. If you just want to hide them, mark them Inactive instead.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => deleteMutation.mutate(editing.id)}
+                      >
+                        Remove worker
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
               <Button type="submit" disabled={saveMutation.isPending}>
                 {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editing ? "Save changes" : "Add worker"}

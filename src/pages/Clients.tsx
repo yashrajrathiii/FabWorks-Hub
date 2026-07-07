@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,6 @@ import { cn } from "@/lib/utils";
 const statusFilters: { value: ClientStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "new_lead", label: "New leads" },
-  { value: "contacted", label: "Contacted" },
   { value: "quote_sent", label: "Quote sent" },
   { value: "deal_closed", label: "Deal closed" },
   { value: "in_progress", label: "In progress" },
@@ -45,7 +45,6 @@ const statusFilters: { value: ClientStatus | "all"; label: string }[] = [
 
 const pipelineOptions: { value: ClientStatus; label: string }[] = [
   { value: "new_lead", label: "New lead" },
-  { value: "contacted", label: "Contacted" },
   { value: "quote_sent", label: "Quote sent" },
   { value: "deal_closed", label: "Deal closed (advance received)" },
   { value: "in_progress", label: "In progress (materials / fabrication)" },
@@ -56,7 +55,6 @@ const pipelineOptions: { value: ClientStatus; label: string }[] = [
 const emptyForm = {
   name: "",
   company: "",
-  contact_person: "",
   phone: "",
   whatsapp: "",
   email: "",
@@ -73,6 +71,7 @@ const emptyForm = {
 type ClientForm = typeof emptyForm;
 
 export default function Clients() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ClientStatus | "all">("all");
@@ -96,7 +95,6 @@ export default function Clients() {
       const row = {
         ...payload,
         company: payload.company || null,
-        contact_person: payload.contact_person || null,
         phone: payload.phone || null,
         whatsapp: payload.whatsapp || null,
         email: payload.email || null,
@@ -163,7 +161,6 @@ export default function Clients() {
     setForm({
       name: client.name,
       company: client.company ?? "",
-      contact_person: client.contact_person ?? "",
       phone: client.phone ?? "",
       whatsapp: client.whatsapp ?? "",
       email: client.email ?? "",
@@ -228,7 +225,19 @@ export default function Clients() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((client) => (
-            <Card key={client.id} className="transition-shadow hover:shadow-md">
+            <Card
+              key={client.id}
+              role="button"
+              tabIndex={0}
+              className="cursor-pointer transition-colors hover:border-primary/40"
+              onClick={() => navigate(`/clients/${client.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  navigate(`/clients/${client.id}`);
+                }
+              }}
+            >
               <CardContent className="space-y-3 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -252,7 +261,11 @@ export default function Clients() {
                 )}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                   {client.phone && (
-                    <a href={`tel:${client.phone}`} className="flex items-center gap-1.5 text-sm text-primary">
+                    <a
+                      href={`tel:${client.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1.5 text-sm text-primary"
+                    >
                       <Phone className="h-3.5 w-3.5" /> {client.phone}
                     </a>
                   )}
@@ -261,6 +274,7 @@ export default function Clients() {
                       href={`https://wa.me/${(client.whatsapp || client.phone || "").replace(/\D/g, "")}`}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       className="flex items-center gap-1.5 text-sm text-success"
                     >
                       <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
@@ -286,14 +300,25 @@ export default function Clients() {
                   <p className="line-clamp-2 text-xs text-muted-foreground">{client.notes}</p>
                 )}
                 <div className="flex justify-end gap-1 border-t pt-2">
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs" onClick={() => openEdit(client)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1.5 px-2 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openEdit(client);
+                    }}
+                  >
                     <Pencil className="h-3.5 w-3.5" /> Edit
                   </Button>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-8 gap-1.5 px-2 text-xs text-destructive hover:text-destructive"
-                    onClick={() => setDeleting(client)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleting(client);
+                    }}
                   >
                     <Trash2 className="h-3.5 w-3.5" /> Delete
                   </Button>
@@ -324,10 +349,6 @@ export default function Clients() {
               <div className="space-y-1.5">
                 <Label htmlFor="company">Company</Label>
                 <Input id="company" placeholder="e.g. ABC Builders" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="contact_person">Contact person</Label>
-                <Input id="contact_person" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="phone">Phone</Label>

@@ -169,7 +169,6 @@ export default function Dashboard() {
                     {task.labourers?.name ?? "Unassigned"} · due {formatDate(task.due_date)}
                   </p>
                 </div>
-                <StatusBadge status={task.status} />
               </div>
             ))}
           </CardContent>
