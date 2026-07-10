@@ -359,7 +359,7 @@ export default function ClientDetail() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const { supplier } = parseNotesAndSupplier(client?.notes ?? null);
+  const { notes, supplier } = parseNotesAndSupplier(client?.notes ?? null);
 
   function openEditSupplier() {
     setSupplierForm({
@@ -912,12 +912,12 @@ export default function ClientDetail() {
                   <span className="font-medium capitalize">{client.source.replace(/_/g, " ")}</span>
                 </div>
               )}
-              {client.notes && (
+              {notes && (
                 <div className="border-t pt-2">
-                  <p className="text-xs text-muted-foreground">{client.notes}</p>
+                  <p className="text-xs text-muted-foreground">{notes}</p>
                 </div>
               )}
-              {!client.estimated_value && !client.follow_up_date && !client.email && !client.address && !client.source && !client.notes && (
+              {!client.estimated_value && !client.follow_up_date && !client.email && !client.address && !client.source && !notes && (
                 <p className="py-2 text-center text-xs text-muted-foreground">
                   Nothing more on file — use Edit on the Clients page to add details.
                 </p>
