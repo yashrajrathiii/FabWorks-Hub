@@ -1,9 +1,17 @@
+import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import StatusBadge from "@/components/StatusBadge";
 import { toast } from "sonner";
 import {
@@ -16,10 +24,15 @@ import {
   Package,
   ClipboardList,
   IndianRupee,
+  Link2,
+  Unlink,
+  Pencil,
+  X,
 } from "lucide-react";
 import { formatINR, formatDate } from "@/lib/format";
 import { computeQuote, buildSpec, partPieces, partTotalKg } from "@/lib/quote";
-import type { Client, Labourer, PaymentInstallment, Quotation, WorkerTask } from "@/types";
+import { defaultInstallments, installmentAmount } from "@/lib/agreement";
+import type { Client, Labourer, Quotation, WorkerTask } from "@/types";
 import { cn } from "@/lib/utils";
 
 type TaskWithWorker = WorkerTask & { labourers: Pick<Labourer, "name"> | null };
@@ -33,13 +46,13 @@ const PIPELINE_STEPS = [
   { label: "Completed", statuses: ["completed"] },
 ];
 
-const installmentAmount = (inst: PaymentInstallment, finalAmount: number) =>
-  (finalAmount * inst.pct) / 100;
-
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [attachOpen, setAttachOpen] = useState(false);
+  /** which quotation's final amount is being edited inline, and the draft value */
+  const [amountDraft, setAmountDraft] = useState<{ id: string; value: string } | null>(null);
 
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ["client", id],
@@ -82,6 +95,75 @@ export default function ClientDetail() {
   });
   const tasks = tasksResult?.tasks ?? [];
 
+  // quotations not linked to any client — candidates for attaching
+  const { data: unattached = [] } = useQuery({
+    queryKey: ["unattached-quotations"],
+    enabled: attachOpen && isSupabaseConfigured,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("quotations")
+        .select("id, quote_number, project_title, total, created_at")
+        .is("client_id", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as Pick<Quotation, "id" | "quote_number" | "project_title" | "total" | "created_at">[];
+    },
+  });
+
+  function invalidateQuoteQueries(quoteId: string) {
+    queryClient.invalidateQueries({ queryKey: ["client-quotations", id] });
+    queryClient.invalidateQueries({ queryKey: ["quotations"] });
+    queryClient.invalidateQueries({ queryKey: ["quotation", quoteId] });
+    queryClient.invalidateQueries({ queryKey: ["unattached-quotations"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  }
+
+  const attachMutation = useMutation({
+    mutationFn: async ({ quotationId, clientName }: { quotationId: string; clientName: string }) => {
+      const { error } = await supabase
+        .from("quotations")
+        .update({ client_id: id, client_name: clientName })
+        .eq("id", quotationId);
+      if (error) throw error;
+    },
+    onSuccess: (_, { quotationId }) => {
+      invalidateQuoteQueries(quotationId);
+      setAttachOpen(false);
+      toast.success("Quotation attached");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const detachMutation = useMutation({
+    mutationFn: async (quotationId: string) => {
+      const { error } = await supabase.from("quotations").update({ client_id: null }).eq("id", quotationId);
+      if (error) throw error;
+    },
+    onSuccess: (_, quotationId) => {
+      invalidateQuoteQueries(quotationId);
+      toast.success("Quotation detached");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const finalAmountMutation = useMutation({
+    mutationFn: async ({ quotation, amount }: { quotation: Quotation; amount: number | null }) => {
+      const patch: Record<string, unknown> = { final_amount: amount };
+      // first time a price is agreed: seed the standard installment plan so
+      // received-tracking rows exist (never reseed — keeps received ticks)
+      if (amount != null && (quotation.payment_plan ?? []).length === 0) {
+        patch.payment_plan = defaultInstallments.map((i) => ({ ...i, id: crypto.randomUUID() }));
+      }
+      const { error } = await supabase.from("quotations").update(patch).eq("id", quotation.id);
+      if (error) throw error;
+    },
+    onSuccess: (_, { quotation }) => {
+      invalidateQuoteQueries(quotation.id);
+      setAmountDraft(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const receivedMutation = useMutation({
     mutationFn: async ({ quotation, installmentId, received }: { quotation: Quotation; installmentId: string; received: boolean }) => {
       const plan = (quotation.payment_plan ?? []).map((inst) =>
@@ -90,9 +172,8 @@ export default function ClientDetail() {
       const { error } = await supabase.from("quotations").update({ payment_plan: plan }).eq("id", quotation.id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["client-quotations", id] });
-      queryClient.invalidateQueries({ queryKey: ["quotations"] });
+    onSuccess: (_, { quotation }) => {
+      invalidateQuoteQueries(quotation.id);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -124,7 +205,7 @@ export default function ClientDetail() {
       sum +
       (q.payment_plan ?? [])
         .filter((inst) => inst.received)
-        .reduce((s, inst) => s + installmentAmount(inst, q.final_amount ?? 0), 0),
+        .reduce((s, inst) => s + installmentAmount(q.final_amount ?? 0, inst.pct), 0),
     0
   );
   const remaining = Math.max(0, dealValue - received);
@@ -344,14 +425,19 @@ export default function ClientDetail() {
           {/* Money */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <IndianRupee className="h-4 w-4 text-primary" /> Payments
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <IndianRupee className="h-4 w-4 text-primary" /> Payments
+                </CardTitle>
+                <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setAttachOpen(true)}>
+                  <Link2 className="h-3.5 w-3.5" /> Attach quotation
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {deals.length === 0 ? (
+              {quotations.length === 0 ? (
                 <p className="py-2 text-center text-sm text-muted-foreground">
-                  No closed deal yet.
+                  No quotations linked yet.
                   {client.estimated_value != null && (
                     <>
                       {" "}
@@ -361,57 +447,150 @@ export default function ClientDetail() {
                 </p>
               ) : (
                 <>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="rounded-lg border p-2">
-                      <p className="text-[11px] text-muted-foreground">Deal value</p>
-                      <p className="text-sm font-semibold">{formatINR(dealValue)}</p>
-                    </div>
-                    <div className="rounded-lg border p-2">
-                      <p className="text-[11px] text-muted-foreground">Received</p>
-                      <p className="text-sm font-semibold text-success">{formatINR(received)}</p>
-                    </div>
-                    <div className="rounded-lg border p-2">
-                      <p className="text-[11px] text-muted-foreground">To collect</p>
-                      <p className={cn("text-sm font-semibold", remaining > 0 ? "text-warning" : "text-success")}>
-                        {formatINR(remaining)}
-                      </p>
-                    </div>
-                  </div>
-                  {deals.map((q) => (
-                    <div key={q.id} className="space-y-1.5 rounded-lg border p-3">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        #{q.quote_number} · {q.project_title || "Untitled"} — {formatINR(q.final_amount ?? 0)}
-                      </p>
-                      {(q.payment_plan ?? []).length === 0 ? (
-                        <p className="text-xs text-muted-foreground">
-                          No payment plan set —{" "}
-                          <Link to={`/quotations/${q.id}`} className="text-primary underline underline-offset-4">
-                            add one on the quotation
-                          </Link>
+                  {deals.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-lg border p-2">
+                        <p className="text-[11px] text-muted-foreground">Deal value</p>
+                        <p className="text-sm font-semibold">{formatINR(dealValue)}</p>
+                      </div>
+                      <div className="rounded-lg border p-2">
+                        <p className="text-[11px] text-muted-foreground">Received</p>
+                        <p className="text-sm font-semibold text-success">{formatINR(received)}</p>
+                      </div>
+                      <div className="rounded-lg border p-2">
+                        <p className="text-[11px] text-muted-foreground">To collect</p>
+                        <p className={cn("text-sm font-semibold", remaining > 0 ? "text-warning" : "text-success")}>
+                          {formatINR(remaining)}
                         </p>
-                      ) : (
-                        (q.payment_plan ?? []).map((inst) => (
-                          <label key={inst.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                            <Checkbox
-                              checked={!!inst.received}
-                              onCheckedChange={(v) =>
-                                receivedMutation.mutate({ quotation: q, installmentId: inst.id, received: v === true })
-                              }
-                            />
-                            <span className={cn("flex-1", inst.received && "text-muted-foreground line-through")}>
-                              {inst.label} ({inst.pct}%)
-                            </span>
-                            <span className={cn("font-medium", inst.received ? "text-success" : "text-foreground")}>
-                              {formatINR(installmentAmount(inst, q.final_amount ?? 0))}
-                            </span>
-                          </label>
-                        ))
-                      )}
+                      </div>
                     </div>
-                  ))}
-                  <p className="text-[11px] text-muted-foreground">
-                    Tick an installment once the money is in hand.
-                  </p>
+                  )}
+                  {quotations.map((q) => {
+                    const editing = amountDraft?.id === q.id;
+                    return (
+                      <div key={q.id} className="space-y-2 rounded-lg border p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <Link
+                            to={`/quotations/${q.id}`}
+                            className="min-w-0 truncate text-xs font-medium text-primary underline-offset-4 hover:underline"
+                          >
+                            #{q.quote_number} · {q.project_title || "Untitled"}
+                          </Link>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => detachMutation.mutate(q.id)}
+                            aria-label="Detach quotation"
+                          >
+                            <Unlink className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Quote total: {formatINR(q.total)}</p>
+                        {editing ? (
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <Input
+                                type="number"
+                                min="0"
+                                inputMode="decimal"
+                                className="h-8 text-sm"
+                                placeholder="Final agreed price (₹)"
+                                autoFocus
+                                value={amountDraft.value}
+                                onChange={(e) => setAmountDraft({ id: q.id, value: e.target.value })}
+                              />
+                              <Button
+                                size="sm"
+                                className="h-8"
+                                disabled={finalAmountMutation.isPending}
+                                onClick={() => {
+                                  const n = parseFloat(amountDraft.value);
+                                  finalAmountMutation.mutate({
+                                    quotation: q,
+                                    amount: Number.isFinite(n) && n > 0 ? n : null,
+                                  });
+                                }}
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => setAmountDraft(null)}
+                                aria-label="Cancel"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            {q.total > 0 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs"
+                                disabled={finalAmountMutation.isPending}
+                                onClick={() =>
+                                  finalAmountMutation.mutate({ quotation: q, amount: Math.round(q.total) })
+                                }
+                              >
+                                Use quote total ({formatINR(q.total)})
+                              </Button>
+                            )}
+                          </div>
+                        ) : q.final_amount != null ? (
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm">
+                              Final agreed: <span className="font-semibold">{formatINR(q.final_amount)}</span>
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground"
+                              onClick={() => setAmountDraft({ id: q.id, value: String(q.final_amount) })}
+                              aria-label="Edit final amount"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs text-muted-foreground">No final amount agreed yet.</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => setAmountDraft({ id: q.id, value: "" })}
+                            >
+                              Set amount
+                            </Button>
+                          </div>
+                        )}
+                        {q.final_amount != null &&
+                          (q.payment_plan ?? []).map((inst) => (
+                            <label key={inst.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={!!inst.received}
+                                onCheckedChange={(v) =>
+                                  receivedMutation.mutate({ quotation: q, installmentId: inst.id, received: v === true })
+                                }
+                              />
+                              <span className={cn("flex-1", inst.received && "text-muted-foreground line-through")}>
+                                {inst.label} ({inst.pct}%)
+                              </span>
+                              <span className={cn("font-medium", inst.received ? "text-success" : "text-foreground")}>
+                                {formatINR(installmentAmount(q.final_amount ?? 0, inst.pct))}
+                              </span>
+                            </label>
+                          ))}
+                      </div>
+                    );
+                  })}
+                  {deals.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Tick an installment once the money is in hand.
+                    </p>
+                  )}
                 </>
               )}
             </CardContent>
@@ -467,6 +646,44 @@ export default function ClientDetail() {
           </Card>
         </div>
       </div>
+
+      {/* Attach quotation dialog */}
+      <Dialog open={attachOpen} onOpenChange={setAttachOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Attach a quotation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {unattached.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No unattached quotations. Create one in{" "}
+                <Link to="/quotations/new" className="text-primary underline underline-offset-4">
+                  Quotations
+                </Link>{" "}
+                and leave the client unset, or pick this client while making it.
+              </p>
+            ) : (
+              unattached.map((q) => (
+                <button
+                  key={q.id}
+                  type="button"
+                  disabled={attachMutation.isPending}
+                  onClick={() => attachMutation.mutate({ quotationId: q.id, clientName: client.name })}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg border p-3 text-left transition-colors hover:border-primary/40 disabled:opacity-60"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      #{q.quote_number} · {q.project_title || "Untitled"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{formatDate(q.created_at)}</p>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold">{formatINR(q.total)}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
