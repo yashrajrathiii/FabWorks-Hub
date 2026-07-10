@@ -15,6 +15,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import StatusBadge from "@/components/StatusBadge";
 import { toast } from "sonner";
 import {
@@ -667,9 +678,43 @@ export default function ClientDetail() {
                   <Package className="h-4 w-4 text-primary" /> Supplier details &amp; payments
                 </CardTitle>
                 {supplier && (
-                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={openEditSupplier}>
-                    <Pencil className="h-3 w-3" /> Edit details
-                  </Button>
+                  <div className="flex gap-1.5">
+                    <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={openEditSupplier}>
+                      <Pencil className="h-3 w-3" /> Edit details
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1 text-xs text-destructive hover:text-destructive"
+                          disabled={updateSupplierMutation.isPending}
+                        >
+                          <Trash2 className="h-3 w-3" /> Remove
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove supplier details?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This clears the supplier info and its recorded payments
+                            {supplier.payments.length > 0 &&
+                              ` (${supplier.payments.length} payment${supplier.payments.length > 1 ? "s" : ""})`}{" "}
+                            from this client. It can't be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => updateSupplierMutation.mutate(null)}
+                          >
+                            Remove
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 )}
               </div>
             </CardHeader>
