@@ -484,7 +484,6 @@ export default function ClientDetail() {
                     <QuotationDealBlock
                       key={q.id}
                       quotation={q}
-                      onDetach={() => detachMutation.mutate(q.id)}
                       onSaveAmount={(amount) => finalAmountMutation.mutate({ quotation: q, amount })}
                       onSavePlan={(plan) => planMutation.mutate({ quotation: q, plan })}
                       pending={finalAmountMutation.isPending || planMutation.isPending || detachMutation.isPending}
@@ -596,13 +595,11 @@ export default function ClientDetail() {
 /** One attached quotation inside the Payments card: final amount, installment plan, received tracking. */
 function QuotationDealBlock({
   quotation: q,
-  onDetach,
   onSaveAmount,
   onSavePlan,
   pending,
 }: {
   quotation: Quotation;
-  onDetach: () => void;
   onSaveAmount: (amount: number | null) => void;
   onSavePlan: (plan: PaymentInstallment[]) => void;
   pending: boolean;
@@ -649,17 +646,6 @@ function QuotationDealBlock({
         >
           #{q.quote_number} · {q.project_title || "Untitled"}
         </Link>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-          onClick={onDetach}
-          disabled={pending}
-          title="Unlink quotation"
-          aria-label="Unlink quotation"
-        >
-          <Unlink className="h-3 w-3" />
-        </Button>
       </div>
       <p className="text-xs text-muted-foreground">Quote total: {formatINR(q.total)}</p>
 
