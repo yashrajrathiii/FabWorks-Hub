@@ -2,57 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-/* FabWorks Hub design tokens — Horizon UI inspired dark theme.
-   Deep navy ground (#0b1437), navy cards (#111c44), indigo/purple brand
-   (#4318FF–#7551FF), muted blue-gray secondary text (#A3AED0). Dark-only. */
+/* FabWorks Hub design tokens — Horizon UI light theme.
+   Soft blue-gray ground (#F4F7FE), white cards/sidebar, navy headings
+   (#2B3674), indigo/blue brand (#4318FF), muted #A3AED0 secondary text. */
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
 
-    --background: 228 67% 13%;        /* #0b1437 navy-900 */
-    --foreground: 0 0% 100%;
+    --background: 222 83% 98%;        /* #F4F7FE */
+    --foreground: 231 46% 31%;        /* #2B3674 navy */
 
-    --card: 227 60% 17%;              /* #111c44 navy-800 */
-    --card-foreground: 0 0% 100%;
+    --card: 0 0% 100%;
+    --card-foreground: 231 46% 31%;
 
-    --popover: 227 60% 17%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 231 46% 31%;
 
-    --primary: 252 100% 66%;          /* #7551FF brand */
+    --primary: 251 100% 55%;          /* #4318FF brand */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 228 47% 20%;         /* #1b254b navy-700 */
-    --secondary-foreground: 225 32% 85%;
+    --secondary: 222 47% 94%;         /* #E9EDF7 */
+    --secondary-foreground: 231 46% 31%;
 
-    --muted: 228 47% 20%;
-    --muted-foreground: 225 32% 73%;  /* #A3AED0 */
+    --muted: 222 47% 95%;
+    --muted-foreground: 225 32% 63%;  /* darker take on #A3AED0 for readability */
 
-    --accent: 251 60% 27%;            /* deep purple tint — icon chips, banners */
-    --accent-foreground: 252 100% 84%;
+    --accent: 251 100% 96%;           /* light brand tint — icon chips, banners */
+    --accent-foreground: 251 100% 55%;
 
-    --destructive: 5 82% 62%;         /* #EE5D50 */
+    --destructive: 5 82% 56%;         /* #EE5D50 family */
     --destructive-foreground: 0 0% 100%;
 
-    --success: 158 99% 36%;           /* #01B574 */
+    --success: 158 99% 33%;           /* #01B574 family */
     --success-foreground: 0 0% 100%;
 
-    --warning: 36 100% 64%;           /* #FFB547 */
-    --warning-foreground: 228 67% 13%;
+    --warning: 35 92% 44%;            /* readable amber on white */
+    --warning-foreground: 0 0% 100%;
 
-    --border: 228 47% 20%;
-    --input: 228 40% 28%;
-    --ring: 252 100% 66%;
+    --border: 222 41% 92%;            /* #E0E5F2 */
+    --input: 222 41% 88%;
+    --ring: 251 100% 55%;
 
     --radius: 0.875rem;
 
-    --sidebar-background: 227 60% 17%;
-    --sidebar-foreground: 225 32% 73%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 225 32% 63%;
     --sidebar-primary: 251 91% 55%;   /* #4318FF active fill */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 228 47% 22%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 228 47% 22%;
-    --sidebar-ring: 252 100% 66%;
+    --sidebar-accent: 251 100% 96%;
+    --sidebar-accent-foreground: 251 100% 55%;
+    --sidebar-border: 222 41% 92%;
+    --sidebar-ring: 251 100% 55%;
   }
 }
 
@@ -64,6 +64,11 @@
   body {
     @apply bg-background text-foreground antialiased;
     letter-spacing: -0.01em;
+  }
+
+  /* Horizon-style bold navy headings */
+  h1, h2, h3 {
+    @apply font-bold;
   }
 
   html {

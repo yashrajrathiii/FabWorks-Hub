@@ -135,8 +135,8 @@ export default function UsersTab() {
                       variant="secondary"
                       className={
                         u.role === "admin"
-                          ? "border-0 bg-emerald-500/15 text-emerald-400"
-                          : "border-0 bg-amber-500/15 text-amber-400"
+                          ? "border-0 bg-emerald-100 text-emerald-700"
+                          : "border-0 bg-amber-100 text-amber-700"
                       }
                     >
                       {u.role === "admin" ? "Has access" : "Pending"}
