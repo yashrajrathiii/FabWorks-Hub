@@ -143,6 +143,8 @@ export interface PaymentInstallment {
   id: string;
   label: string;
   pct: number;
+  /** fixed ₹ amount — overrides pct; used for custom recorded payments (partial receipts) */
+  amount?: number;
   /** ticked once the money is actually collected (tracked on the client page) */
   received?: boolean;
 }

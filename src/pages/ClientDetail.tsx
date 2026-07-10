@@ -27,12 +27,14 @@ import {
   Link2,
   Unlink,
   Pencil,
+  Plus,
+  Trash2,
   X,
 } from "lucide-react";
-import { formatINR, formatDate } from "@/lib/format";
+import { formatINR, formatDate, toLocalDateString } from "@/lib/format";
 import { computeQuote, buildSpec, partPieces, partTotalKg } from "@/lib/quote";
-import { defaultInstallments, installmentAmount } from "@/lib/agreement";
-import type { Client, Labourer, Quotation, WorkerTask } from "@/types";
+import { defaultInstallments } from "@/lib/agreement";
+import type { Client, Labourer, PaymentInstallment, Quotation, WorkerTask } from "@/types";
 import { cn } from "@/lib/utils";
 
 type TaskWithWorker = WorkerTask & { labourers: Pick<Labourer, "name"> | null };
@@ -46,13 +48,15 @@ const PIPELINE_STEPS = [
   { label: "Completed", statuses: ["completed"] },
 ];
 
+/** ₹ value of one installment: fixed amount when set (custom payments), else % of the agreed price. */
+const instValue = (inst: PaymentInstallment, finalAmount: number) =>
+  inst.amount ?? (finalAmount * inst.pct) / 100;
+
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [attachOpen, setAttachOpen] = useState(false);
-  /** which quotation's final amount is being edited inline, and the draft value */
-  const [amountDraft, setAmountDraft] = useState<{ id: string; value: string } | null>(null);
 
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ["client", id],
@@ -159,16 +163,14 @@ export default function ClientDetail() {
     },
     onSuccess: (_, { quotation }) => {
       invalidateQuoteQueries(quotation.id);
-      setAmountDraft(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const receivedMutation = useMutation({
-    mutationFn: async ({ quotation, installmentId, received }: { quotation: Quotation; installmentId: string; received: boolean }) => {
-      const plan = (quotation.payment_plan ?? []).map((inst) =>
-        inst.id === installmentId ? { ...inst, received } : inst
-      );
+  // one mutation for every payment_plan change: received ticks, edited
+  // percentages, new stages, and custom recorded payments
+  const planMutation = useMutation({
+    mutationFn: async ({ quotation, plan }: { quotation: Quotation; plan: PaymentInstallment[] }) => {
       const { error } = await supabase.from("quotations").update({ payment_plan: plan }).eq("id", quotation.id);
       if (error) throw error;
     },
@@ -205,7 +207,7 @@ export default function ClientDetail() {
       sum +
       (q.payment_plan ?? [])
         .filter((inst) => inst.received)
-        .reduce((s, inst) => s + installmentAmount(q.final_amount ?? 0, inst.pct), 0),
+        .reduce((s, inst) => s + instValue(inst, q.final_amount ?? 0), 0),
     0
   );
   const remaining = Math.max(0, dealValue - received);
@@ -429,9 +431,22 @@ export default function ClientDetail() {
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <IndianRupee className="h-4 w-4 text-primary" /> Payments
                 </CardTitle>
-                <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setAttachOpen(true)}>
-                  <Link2 className="h-3.5 w-3.5" /> Attach quotation
-                </Button>
+                {quotations.length === 1 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
+                    title="Unlink quotation"
+                    disabled={detachMutation.isPending}
+                    onClick={() => detachMutation.mutate(quotations[0].id)}
+                  >
+                    <Unlink className="h-3.5 w-3.5" /> Unlink quotation
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setAttachOpen(true)}>
+                    <Link2 className="h-3.5 w-3.5" /> Attach quotation
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -465,130 +480,20 @@ export default function ClientDetail() {
                       </div>
                     </div>
                   )}
-                  {quotations.map((q) => {
-                    const editing = amountDraft?.id === q.id;
-                    return (
-                      <div key={q.id} className="space-y-2 rounded-lg border p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <Link
-                            to={`/quotations/${q.id}`}
-                            className="min-w-0 truncate text-xs font-medium text-primary underline-offset-4 hover:underline"
-                          >
-                            #{q.quote_number} · {q.project_title || "Untitled"}
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                            onClick={() => detachMutation.mutate(q.id)}
-                            aria-label="Detach quotation"
-                          >
-                            <Unlink className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground">Quote total: {formatINR(q.total)}</p>
-                        {editing ? (
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-1.5">
-                              <Input
-                                type="number"
-                                min="0"
-                                inputMode="decimal"
-                                className="h-8 text-sm"
-                                placeholder="Final agreed price (₹)"
-                                autoFocus
-                                value={amountDraft.value}
-                                onChange={(e) => setAmountDraft({ id: q.id, value: e.target.value })}
-                              />
-                              <Button
-                                size="sm"
-                                className="h-8"
-                                disabled={finalAmountMutation.isPending}
-                                onClick={() => {
-                                  const n = parseFloat(amountDraft.value);
-                                  finalAmountMutation.mutate({
-                                    quotation: q,
-                                    amount: Number.isFinite(n) && n > 0 ? n : null,
-                                  });
-                                }}
-                              >
-                                Save
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => setAmountDraft(null)}
-                                aria-label="Cancel"
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                            {q.total > 0 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-xs"
-                                disabled={finalAmountMutation.isPending}
-                                onClick={() =>
-                                  finalAmountMutation.mutate({ quotation: q, amount: Math.round(q.total) })
-                                }
-                              >
-                                Use quote total ({formatINR(q.total)})
-                              </Button>
-                            )}
-                          </div>
-                        ) : q.final_amount != null ? (
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm">
-                              Final agreed: <span className="font-semibold">{formatINR(q.final_amount)}</span>
-                            </p>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground"
-                              onClick={() => setAmountDraft({ id: q.id, value: String(q.final_amount) })}
-                              aria-label="Edit final amount"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs text-muted-foreground">No final amount agreed yet.</p>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => setAmountDraft({ id: q.id, value: "" })}
-                            >
-                              Set amount
-                            </Button>
-                          </div>
-                        )}
-                        {q.final_amount != null &&
-                          (q.payment_plan ?? []).map((inst) => (
-                            <label key={inst.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={!!inst.received}
-                                onCheckedChange={(v) =>
-                                  receivedMutation.mutate({ quotation: q, installmentId: inst.id, received: v === true })
-                                }
-                              />
-                              <span className={cn("flex-1", inst.received && "text-muted-foreground line-through")}>
-                                {inst.label} ({inst.pct}%)
-                              </span>
-                              <span className={cn("font-medium", inst.received ? "text-success" : "text-foreground")}>
-                                {formatINR(installmentAmount(q.final_amount ?? 0, inst.pct))}
-                              </span>
-                            </label>
-                          ))}
-                      </div>
-                    );
-                  })}
+                  {quotations.map((q) => (
+                    <QuotationDealBlock
+                      key={q.id}
+                      quotation={q}
+                      onDetach={() => detachMutation.mutate(q.id)}
+                      onSaveAmount={(amount) => finalAmountMutation.mutate({ quotation: q, amount })}
+                      onSavePlan={(plan) => planMutation.mutate({ quotation: q, plan })}
+                      pending={finalAmountMutation.isPending || planMutation.isPending || detachMutation.isPending}
+                    />
+                  ))}
                   {deals.length > 0 && (
                     <p className="text-[11px] text-muted-foreground">
-                      Tick an installment once the money is in hand.
+                      Tick an installment once the money is in hand, or record a custom amount for
+                      partial payments.
                     </p>
                   )}
                 </>
@@ -684,6 +589,288 @@ export default function ClientDetail() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** One attached quotation inside the Payments card: final amount, installment plan, received tracking. */
+function QuotationDealBlock({
+  quotation: q,
+  onDetach,
+  onSaveAmount,
+  onSavePlan,
+  pending,
+}: {
+  quotation: Quotation;
+  onDetach: () => void;
+  onSaveAmount: (amount: number | null) => void;
+  onSavePlan: (plan: PaymentInstallment[]) => void;
+  pending: boolean;
+}) {
+  const [amountDraft, setAmountDraft] = useState<string | null>(null);
+  const [planDraft, setPlanDraft] = useState<PaymentInstallment[] | null>(null);
+  const [payDraft, setPayDraft] = useState<string | null>(null);
+
+  const plan = q.payment_plan ?? [];
+  const final = q.final_amount ?? 0;
+  const pctSum = (planDraft ?? []).filter((i) => i.amount == null).reduce((s, i) => s + i.pct, 0);
+
+  function saveAmount() {
+    const n = parseFloat(amountDraft ?? "");
+    onSaveAmount(Number.isFinite(n) && n > 0 ? n : null);
+    setAmountDraft(null);
+  }
+
+  function recordPayment() {
+    const n = parseFloat(payDraft ?? "");
+    if (!Number.isFinite(n) || n <= 0) {
+      toast.error("Enter the amount received");
+      return;
+    }
+    onSavePlan([
+      ...plan,
+      {
+        id: crypto.randomUUID(),
+        label: `Payment received — ${formatDate(toLocalDateString())}`,
+        pct: 0,
+        amount: n,
+        received: true,
+      },
+    ]);
+    setPayDraft(null);
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <Link
+          to={`/quotations/${q.id}`}
+          className="min-w-0 truncate text-xs font-medium text-primary underline-offset-4 hover:underline"
+        >
+          #{q.quote_number} · {q.project_title || "Untitled"}
+        </Link>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+          onClick={onDetach}
+          disabled={pending}
+          title="Unlink quotation"
+          aria-label="Unlink quotation"
+        >
+          <Unlink className="h-3 w-3" />
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">Quote total: {formatINR(q.total)}</p>
+
+      {/* Final agreed amount */}
+      {amountDraft != null ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="number"
+              min="0"
+              inputMode="decimal"
+              className="h-8 text-sm"
+              placeholder="Final agreed price (₹)"
+              autoFocus
+              value={amountDraft}
+              onChange={(e) => setAmountDraft(e.target.value)}
+            />
+            <Button size="sm" className="h-8" disabled={pending} onClick={saveAmount}>
+              Save
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setAmountDraft(null)} aria-label="Cancel">
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          {q.total > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={pending}
+              onClick={() => {
+                onSaveAmount(Math.round(q.total));
+                setAmountDraft(null);
+              }}
+            >
+              Use quote total ({formatINR(q.total)})
+            </Button>
+          )}
+        </div>
+      ) : q.final_amount != null ? (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm">
+            Final agreed: <span className="font-semibold">{formatINR(q.final_amount)}</span>
+          </p>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-muted-foreground"
+            onClick={() => setAmountDraft(String(q.final_amount))}
+            title="Edit final amount"
+            aria-label="Edit final amount"
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">No final amount agreed yet.</p>
+          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAmountDraft("")}>
+            Set amount
+          </Button>
+        </div>
+      )}
+
+      {/* Installments: edit mode */}
+      {q.final_amount != null && planDraft != null && (
+        <div className="space-y-1.5 border-t pt-2">
+          {planDraft.map((inst) => (
+            <div key={inst.id} className="flex items-center gap-1.5">
+              <Input
+                className="h-8 flex-1 text-xs"
+                placeholder="e.g. On delivery"
+                value={inst.label}
+                onChange={(e) =>
+                  setPlanDraft((rows) => rows!.map((i) => (i.id === inst.id ? { ...i, label: e.target.value } : i)))
+                }
+              />
+              {inst.amount == null ? (
+                <div className="relative w-16 shrink-0">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    inputMode="decimal"
+                    className="h-8 pr-5 text-xs"
+                    value={inst.pct || ""}
+                    onChange={(e) =>
+                      setPlanDraft((rows) =>
+                        rows!.map((i) => (i.id === inst.id ? { ...i, pct: parseFloat(e.target.value) || 0 } : i))
+                      )
+                    }
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">%</span>
+                </div>
+              ) : (
+                <div className="relative w-24 shrink-0">
+                  <Input
+                    type="number"
+                    min="0"
+                    inputMode="decimal"
+                    className="h-8 pl-5 text-xs"
+                    value={inst.amount || ""}
+                    onChange={(e) =>
+                      setPlanDraft((rows) =>
+                        rows!.map((i) => (i.id === inst.id ? { ...i, amount: parseFloat(e.target.value) || 0 } : i))
+                      )
+                    }
+                  />
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">₹</span>
+                </div>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                onClick={() => setPlanDraft((rows) => rows!.filter((i) => i.id !== inst.id))}
+                aria-label="Remove installment"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 text-xs"
+              onClick={() => setPlanDraft((rows) => [...rows!, { id: crypto.randomUUID(), label: "", pct: 0 }])}
+            >
+              <Plus className="h-3 w-3" /> Add stage
+            </Button>
+            <p className={cn("text-[11px]", Math.abs(pctSum - 100) < 0.01 ? "text-muted-foreground" : "font-medium text-destructive")}>
+              {pctSum}%{Math.abs(pctSum - 100) >= 0.01 && " — should be 100%"}
+            </p>
+          </div>
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              disabled={pending}
+              onClick={() => {
+                onSavePlan(planDraft.filter((i) => i.label.trim() || i.pct > 0 || (i.amount ?? 0) > 0));
+                setPlanDraft(null);
+              }}
+            >
+              Save plan
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPlanDraft(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Installments: display mode */}
+      {q.final_amount != null && planDraft == null && (
+        <>
+          {plan.map((inst) => (
+            <label key={inst.id} className="flex cursor-pointer items-center gap-2 text-sm">
+              <Checkbox
+                checked={!!inst.received}
+                onCheckedChange={(v) =>
+                  onSavePlan(plan.map((i) => (i.id === inst.id ? { ...i, received: v === true } : i)))
+                }
+              />
+              <span className={cn("flex-1", inst.received && "text-muted-foreground line-through")}>
+                {inst.label}
+                {inst.amount == null && ` (${inst.pct}%)`}
+              </span>
+              <span className={cn("font-medium", inst.received ? "text-success" : "text-foreground")}>
+                {formatINR(instValue(inst, final))}
+              </span>
+            </label>
+          ))}
+
+          {payDraft != null ? (
+            <div className="flex items-center gap-1.5 border-t pt-2">
+              <Input
+                type="number"
+                min="0"
+                inputMode="decimal"
+                className="h-8 text-sm"
+                placeholder="Amount received (₹)"
+                autoFocus
+                value={payDraft}
+                onChange={(e) => setPayDraft(e.target.value)}
+              />
+              <Button size="sm" className="h-8" disabled={pending} onClick={recordPayment}>
+                Add
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPayDraft(null)} aria-label="Cancel">
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-1.5 border-t pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={() => setPlanDraft(plan.map((i) => ({ ...i })))}
+              >
+                <Pencil className="h-3 w-3" /> Edit plan
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setPayDraft("")}>
+                <Plus className="h-3 w-3" /> Record payment
+              </Button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
