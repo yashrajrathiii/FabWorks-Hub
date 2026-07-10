@@ -14,9 +14,7 @@ import { cn } from "@/lib/utils";
 const filters: { value: QuoteStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "draft", label: "Drafts" },
-  { value: "sent", label: "Sent" },
   { value: "accepted", label: "Accepted" },
-  { value: "rejected", label: "Rejected" },
 ];
 
 export default function Quotations() {
@@ -38,7 +36,9 @@ export default function Quotations() {
 
   const filtered = useMemo(() => {
     return quotes.filter((q) => {
-      const matchesFilter = filter === "all" || q.status === filter;
+      // two-stage model: anything not accepted counts as a draft (covers legacy sent/rejected rows)
+      const matchesFilter =
+        filter === "all" || (filter === "draft" ? q.status !== "accepted" : q.status === filter);
       const term = search.trim().toLowerCase();
       const matchesSearch =
         !term ||
@@ -122,7 +122,7 @@ export default function Quotations() {
                         <p className="text-[10px] md:text-xs font-medium uppercase tracking-wide text-success">agreed</p>
                       )}
                     </div>
-                    <StatusBadge status={quote.status} />
+                    <StatusBadge status={quote.status === "accepted" ? "accepted" : "draft"} />
                   </div>
                 </CardContent>
               </Card>

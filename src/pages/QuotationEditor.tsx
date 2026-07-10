@@ -118,7 +118,8 @@ export default function QuotationEditor() {
     setClientId(existing.client_id ?? "");
     setClientName(existing.client_name);
     setProjectTitle(existing.project_title);
-    setStatus(existing.status);
+    // two-stage model: legacy sent/rejected rows normalize to draft
+    setStatus(existing.status === "accepted" ? "accepted" : "draft");
     setValidUntil(existing.valid_until ?? "");
     setNotes(existing.notes ?? "");
     const loaded: QuoteData = {
@@ -226,9 +227,7 @@ export default function QuotationEditor() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="sent">Sent</SelectItem>
               <SelectItem value="accepted">Accepted</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="gap-2">
