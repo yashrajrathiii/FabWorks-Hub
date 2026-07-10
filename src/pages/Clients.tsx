@@ -231,122 +231,125 @@ export default function Clients() {
         </Card>
       ) : (
         <div className="grid auto-rows-fr gap-3 md:gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((client) => (
-            <div
-              key={client.id}
-              role="button"
-              tabIndex={0}
-              className="rounded-lg border bg-card text-card-foreground shadow-sm cursor-pointer transition-colors hover:border-primary/40"
-              style={{ display: "flex", flexDirection: "column", height: "100%" }}
-              onClick={() => navigate(`/clients/${client.id}`)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  navigate(`/clients/${client.id}`);
-                }
-              }}
-            >
-              <div 
-                className="space-y-3 md:space-y-4 p-4 md:p-6"
-                style={{ display: "flex", flexDirection: "column", flex: "1 1 auto" }}
+          {filtered.map((client) => {
+            const { notes } = parseNotesAndSupplier(client.notes);
+            return (
+              <div
+                key={client.id}
+                role="button"
+                tabIndex={0}
+                className="rounded-lg border bg-card text-card-foreground shadow-sm cursor-pointer transition-colors hover:border-primary/40"
+                style={{ display: "flex", flexDirection: "column", height: "100%" }}
+                onClick={() => navigate(`/clients/${client.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(`/clients/${client.id}`);
+                  }
+                }}
               >
-                {/* Top dynamic section */}
-                <div className="space-y-3 md:space-y-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold md:text-lg md:font-bold">{client.name}</p>
-                      <p className="truncate text-xs md:text-sm text-muted-foreground">
-                        {[client.company, client.city].filter(Boolean).join(" · ") || "—"}
-                      </p>
+                <div 
+                  className="space-y-3 md:space-y-4 p-4 md:p-6"
+                  style={{ display: "flex", flexDirection: "column", flex: "1 1 auto" }}
+                >
+                  {/* Top dynamic section */}
+                  <div className="space-y-3 md:space-y-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold md:text-lg md:font-bold">{client.name}</p>
+                        <p className="truncate text-xs md:text-sm text-muted-foreground">
+                          {[client.company, client.city].filter(Boolean).join(" · ") || "—"}
+                        </p>
+                      </div>
+                      <StatusBadge status={client.status} />
                     </div>
-                    <StatusBadge status={client.status} />
+                    {(client.work_type || client.estimated_value != null) && (
+                      <p className="truncate text-xs md:text-sm text-muted-foreground">
+                        {client.work_type}
+                        {client.work_type && client.estimated_value != null && " · "}
+                        {client.estimated_value != null && (
+                          <span className="font-medium text-foreground">
+                            est. {formatINR(client.estimated_value)}
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    {client.follow_up_date && client.status !== "lost" && client.status !== "completed" && (
+                      <span
+                        className={cn(
+                          "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 md:px-3 md:py-1.5 text-[11px] md:text-xs font-medium",
+                          client.follow_up_date <= toLocalDateString()
+                            ? "bg-destructive/10 text-destructive"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        <CalendarClock className="h-3 w-3 md:h-4 md:w-4" />
+                        {client.follow_up_date <= toLocalDateString()
+                          ? `Follow up due — ${formatDate(client.follow_up_date)}`
+                          : `Follow-up ${formatDate(client.follow_up_date)}`}
+                      </span>
+                    )}
+                    {notes && (
+                      <p className="line-clamp-2 text-xs md:text-sm text-muted-foreground">{notes}</p>
+                    )}
                   </div>
-                  {(client.work_type || client.estimated_value != null) && (
-                    <p className="truncate text-xs md:text-sm text-muted-foreground">
-                      {client.work_type}
-                      {client.work_type && client.estimated_value != null && " · "}
-                      {client.estimated_value != null && (
-                        <span className="font-medium text-foreground">
-                          est. {formatINR(client.estimated_value)}
-                        </span>
-                      )}
-                    </p>
-                  )}
-                  {client.follow_up_date && client.status !== "lost" && client.status !== "completed" && (
-                    <span
-                      className={cn(
-                        "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 md:px-3 md:py-1.5 text-[11px] md:text-xs font-medium",
-                        client.follow_up_date <= toLocalDateString()
-                          ? "bg-destructive/10 text-destructive"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      <CalendarClock className="h-3 w-3 md:h-4 md:w-4" />
-                      {client.follow_up_date <= toLocalDateString()
-                        ? `Follow up due — ${formatDate(client.follow_up_date)}`
-                        : `Follow-up ${formatDate(client.follow_up_date)}`}
-                    </span>
-                  )}
-                  {client.notes && (
-                    <p className="line-clamp-2 text-xs md:text-sm text-muted-foreground">{client.notes}</p>
-                  )}
-                </div>
 
-                {/* Bottom fixed section */}
-                <div className="space-y-3 md:space-y-4" style={{ marginTop: "auto" }}>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-h-[24px] md:min-h-[28px]">
-                    {client.phone && (
-                      <a
-                        href={`tel:${client.phone}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1.5 text-sm md:text-base text-primary"
-                      >
-                        <Phone className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> {client.phone}
-                      </a>
-                    )}
-                    {(client.whatsapp || client.phone) && (
-                      <a
-                        href={`https://wa.me/${(client.whatsapp || client.phone || "").replace(/\D/g, "")}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1.5 text-sm md:text-base text-success"
-                      >
-                        <MessageCircle className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> WhatsApp
-                      </a>
-                    )}
-                  </div>
-                  <div 
-                    className="flex justify-end gap-1 md:gap-2 border-t pt-2 md:pt-3"
-                    style={{ display: "flex" }}
-                  >
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 md:h-9 gap-1.5 px-2 md:px-3 text-xs md:text-sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEdit(client);
-                      }}
+                  {/* Bottom fixed section */}
+                  <div className="space-y-3 md:space-y-4" style={{ marginTop: "auto" }}>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-h-[24px] md:min-h-[28px]">
+                      {client.phone && (
+                        <a
+                          href={`tel:${client.phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1.5 text-sm md:text-base text-primary"
+                        >
+                          <Phone className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> {client.phone}
+                        </a>
+                      )}
+                      {(client.whatsapp || client.phone) && (
+                        <a
+                          href={`https://wa.me/${(client.whatsapp || client.phone || "").replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1.5 text-sm md:text-base text-success"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> WhatsApp
+                        </a>
+                      )}
+                    </div>
+                    <div 
+                      className="flex justify-end gap-1 md:gap-2 border-t pt-2 md:pt-3"
+                      style={{ display: "flex" }}
                     >
-                      <Pencil className="h-3.5 w-3.5 md:h-4 md:w-4" /> Edit
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 md:h-9 gap-1.5 px-2 md:px-3 text-xs md:text-sm text-destructive hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleting(client);
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> Delete
-                    </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 md:h-9 gap-1.5 px-2 md:px-3 text-xs md:text-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(client);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5 md:h-4 md:w-4" /> Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 md:h-9 gap-1.5 px-2 md:px-3 text-xs md:text-sm text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleting(client);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 md:h-4 md:w-4" /> Delete
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
