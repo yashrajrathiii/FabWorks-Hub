@@ -81,7 +81,7 @@ export default function AttendanceTab() {
           <Button variant="outline" size="icon" className="h-9 w-9 md:h-11 md:w-11" onClick={() => shiftDate(-1)} aria-label="Previous day">
             <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
           </Button>
-          <Input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="w-40 md:w-52 md:h-11 md:text-base" />
+          <Input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="w-40 md:w-52 md:h-11 md:text-[15px]" />
           <Button
             variant="outline"
             size="icon"
@@ -109,7 +109,7 @@ export default function AttendanceTab() {
         </div>
       ) : workers.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center text-sm md:text-base text-muted-foreground">
+          <CardContent className="py-16 text-center text-sm md:text-[15px] text-muted-foreground">
             Add workers in the Workers tab first, then mark attendance here.
           </CardContent>
         </Card>
@@ -133,7 +133,7 @@ export default function AttendanceTab() {
               >
                 <CardContent className="flex flex-col gap-3 p-4 md:p-6 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 text-left">
-                    <p className="truncate font-medium md:text-lg md:font-semibold">{worker.name}</p>
+                    <p className="truncate font-medium md:text-base md:font-semibold">{worker.name}</p>
                     <p className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground">
                       <span className="capitalize">{worker.skill ?? "—"}</span>
                       {record && record.status !== "absent" && (
@@ -177,7 +177,7 @@ export default function AttendanceTab() {
 
       <Card>
         <CardHeader className="pb-2 md:pb-3 md:pt-4">
-          <CardTitle className="text-sm md:text-base">How this works</CardTitle>
+          <CardTitle className="text-sm md:text-[15px]">How this works</CardTitle>
         </CardHeader>
         <CardContent className="text-xs md:text-sm text-muted-foreground">
           Attendance is saved per worker per day — tap a status to mark or change it. Tap anywhere on

@@ -190,12 +190,12 @@ export default function Clients() {
           <Search className="absolute left-3 md:left-4 top-1/2 h-4 w-4 md:h-5 md:w-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search name, phone, city…"
-            className="pl-9 md:pl-11 md:h-12 md:text-base"
+            className="pl-9 md:pl-10 md:h-11 md:text-[15px]"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={openAdd} className="gap-2 md:gap-3 md:h-12 md:px-6 md:text-base">
+        <Button onClick={openAdd} className="gap-2 md:gap-3 md:h-11 md:px-5 md:text-[15px]">
           <Plus className="h-4 w-4 md:h-5 md:w-5" /> Add client / lead
         </Button>
       </div>
@@ -223,7 +223,7 @@ export default function Clients() {
         </div>
       ) : filtered.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center text-sm md:text-base text-muted-foreground">
+          <CardContent className="py-16 text-center text-sm md:text-[15px] text-muted-foreground">
             {clients.length === 0
               ? "No clients or leads yet. Add your first one to get started."
               : "Nothing matches your search."}
@@ -256,7 +256,7 @@ export default function Clients() {
                   <div className="space-y-3 md:space-y-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate font-semibold md:text-lg md:font-bold">{client.name}</p>
+                        <p className="truncate font-semibold md:text-base md:font-bold">{client.name}</p>
                         <p className="truncate text-xs md:text-sm text-muted-foreground">
                           {[client.company, client.city].filter(Boolean).join(" · ") || "—"}
                         </p>
@@ -301,7 +301,7 @@ export default function Clients() {
                         <a
                           href={`tel:${client.phone}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1.5 text-sm md:text-base text-primary"
+                          className="flex items-center gap-1.5 text-sm md:text-[15px] text-primary"
                         >
                           <Phone className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> {client.phone}
                         </a>
@@ -312,7 +312,7 @@ export default function Clients() {
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="flex items-center gap-1.5 text-sm md:text-base text-success"
+                          className="flex items-center gap-1.5 text-sm md:text-[15px] text-success"
                         >
                           <MessageCircle className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> WhatsApp
                         </a>

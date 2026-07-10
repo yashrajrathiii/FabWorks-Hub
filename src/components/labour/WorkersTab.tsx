@@ -141,7 +141,7 @@ export default function WorkersTab() {
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex justify-end">
-        <Button onClick={openAdd} className="gap-2 md:gap-3 md:h-12 md:px-6 md:text-base">
+        <Button onClick={openAdd} className="gap-2 md:gap-3 md:h-11 md:px-5 md:text-[15px]">
           <Plus className="h-4 w-4 md:h-5 md:w-5" /> Add worker
         </Button>
       </div>
@@ -152,7 +152,7 @@ export default function WorkersTab() {
         </div>
       ) : workers.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center text-sm md:text-base text-muted-foreground">
+          <CardContent className="py-16 text-center text-sm md:text-[15px] text-muted-foreground">
             No workers yet. Add your labour team to start tracking attendance and tasks.
           </CardContent>
         </Card>
@@ -172,7 +172,7 @@ export default function WorkersTab() {
                 <div className="space-y-3 md:space-y-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold md:text-lg md:font-bold">{worker.name}</p>
+                      <p className="truncate font-semibold md:text-base md:font-bold">{worker.name}</p>
                       <p className="text-xs md:text-sm capitalize text-muted-foreground">
                         {worker.skill ?? "—"} · joined {formatDate(worker.joining_date)}
                       </p>
@@ -185,7 +185,7 @@ export default function WorkersTab() {
 
                 {/* Bottom fixed section */}
                 <div className="space-y-3 md:space-y-4" style={{ marginTop: "auto" }}>
-                  <div className="flex items-center justify-between text-sm md:text-base">
+                  <div className="flex items-center justify-between text-sm md:text-[15px]">
                     <span className="font-medium">
                       {formatINR(worker.daily_wage)}/{payCycleUnit(worker.pay_cycle ?? "daily")}
                     </span>

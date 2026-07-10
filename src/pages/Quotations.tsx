@@ -56,12 +56,12 @@ export default function Quotations() {
           <Search className="absolute left-3 md:left-4 top-1/2 h-4 w-4 md:h-5 md:w-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search quotes…"
-            className="pl-9 md:pl-11 md:h-12 md:text-base"
+            className="pl-9 md:pl-10 md:h-11 md:text-[15px]"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button asChild className="gap-2 md:gap-3 md:h-12 md:px-6 md:text-base">
+        <Button asChild className="gap-2 md:gap-3 md:h-11 md:px-5 md:text-[15px]">
           <Link to="/quotations/new">
             <Plus className="h-4 w-4 md:h-5 md:w-5" /> New quotation
           </Link>
@@ -93,7 +93,7 @@ export default function Quotations() {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <FileText className="h-8 w-8 md:h-10 md:w-10 text-muted-foreground/50" />
-            <p className="text-sm md:text-base text-muted-foreground">
+            <p className="text-sm md:text-[15px] text-muted-foreground">
               {quotes.length === 0
                 ? "No quotations yet. Create your first quote with the calculator."
                 : "Nothing matches your search."}
@@ -107,7 +107,7 @@ export default function Quotations() {
               <Card className="transition-shadow hover:shadow-md">
                 <CardContent className="flex items-center justify-between gap-3 p-4 md:p-6">
                   <div className="min-w-0">
-                    <p className="truncate font-medium md:text-lg md:font-bold">
+                    <p className="truncate font-medium md:text-base md:font-bold">
                       <span className="text-muted-foreground">#{quote.quote_number}</span>{" "}
                       {quote.project_title || "Untitled project"}
                     </p>
@@ -117,7 +117,7 @@ export default function Quotations() {
                   </div>
                   <div className="flex shrink-0 items-center gap-3 md:gap-5">
                     <div className="text-right">
-                      <p className="font-semibold md:text-lg md:font-bold">{formatINR(quote.final_amount ?? quote.total)}</p>
+                      <p className="font-semibold md:text-base md:font-bold">{formatINR(quote.final_amount ?? quote.total)}</p>
                       {quote.final_amount != null && (
                         <p className="text-[10px] md:text-xs font-medium uppercase tracking-wide text-success">agreed</p>
                       )}

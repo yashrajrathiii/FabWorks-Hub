@@ -146,7 +146,7 @@ export default function TasksTab() {
         <CardContent className="flex flex-col gap-3 p-4 md:p-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-medium md:text-lg md:font-semibold">{task.title}</p>
+              <p className="font-medium md:text-base md:font-semibold">{task.title}</p>
               {task.clients?.name && (
                 <span className="rounded-full bg-primary/15 px-2 py-0.5 md:px-2.5 md:py-1 text-[10px] md:text-xs font-medium text-primary">
                   {task.clients.name}
@@ -207,7 +207,7 @@ export default function TasksTab() {
             </button>
           ))}
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="gap-2 md:gap-3 md:h-12 md:px-6 md:text-base" disabled={workers.length === 0}>
+        <Button onClick={() => setDialogOpen(true)} className="gap-2 md:gap-3 md:h-11 md:px-5 md:text-[15px]" disabled={workers.length === 0}>
           <Plus className="h-4 w-4 md:h-5 md:w-5" /> Assign task
         </Button>
       </div>
@@ -220,12 +220,12 @@ export default function TasksTab() {
         <>
           {filter !== "completed" && (
             <section className="space-y-2 md:space-y-3">
-              <h3 className="text-sm md:text-base font-semibold text-muted-foreground">
+              <h3 className="text-sm md:text-[15px] font-semibold text-muted-foreground">
                 In progress {inProgress.length > 0 && `(${inProgress.length})`}
               </h3>
               {inProgress.length === 0 ? (
                 <Card>
-                  <CardContent className="py-10 md:py-16 text-center text-sm md:text-base text-muted-foreground">
+                  <CardContent className="py-10 md:py-16 text-center text-sm md:text-[15px] text-muted-foreground">
                     {workers.length === 0
                       ? "Add workers first, then assign them tasks."
                       : "No tasks in progress. Assign one to get started."}
@@ -239,12 +239,12 @@ export default function TasksTab() {
 
           {filter !== "in_progress" && (
             <section className="space-y-2 md:space-y-3">
-              <h3 className="text-sm md:text-base font-semibold text-muted-foreground">
+              <h3 className="text-sm md:text-[15px] font-semibold text-muted-foreground">
                 Completed {completed.length > 0 && `(${completed.length})`}
               </h3>
               {completed.length === 0 ? (
                 <Card>
-                  <CardContent className="py-10 md:py-16 text-center text-sm md:text-base text-muted-foreground">
+                  <CardContent className="py-10 md:py-16 text-center text-sm md:text-[15px] text-muted-foreground">
                     Nothing completed yet — tasks land here when you mark them done.
                   </CardContent>
                 </Card>

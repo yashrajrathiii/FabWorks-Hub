@@ -88,10 +88,10 @@ export default function Dashboard() {
             <Card className="transition-shadow hover:shadow-md">
               <CardContent className="flex items-center gap-3 md:gap-5 p-4 md:p-6">
                 <div className="flex h-10 w-10 md:h-16 md:w-16 shrink-0 items-center justify-center rounded-lg bg-accent">
-                  <Icon className="h-5 w-5 md:h-8 md:w-8 text-accent-foreground" />
+                  <Icon className="h-5 w-5 md:h-6 md:w-6 text-accent-foreground" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xl font-bold leading-tight md:text-3xl lg:text-4xl">{value}</p>
+                  <p className="text-xl font-bold leading-tight md:text-2xl lg:text-3xl">{value}</p>
                   <p className="truncate text-xs md:text-sm text-muted-foreground">{label}</p>
                 </div>
               </CardContent>
@@ -102,14 +102,14 @@ export default function Dashboard() {
 
       {stats.followUps.length > 0 && (
         <Card className="border-warning/40">
-          <CardHeader className="pb-3 md:pb-4 md:pt-6 md:px-6">
-            <CardTitle className="text-base md:text-xl">Follow-ups due</CardTitle>
+          <CardHeader className="pb-3 md:pb-4 md:pt-6 md:px-5">
+            <CardTitle className="text-base md:text-lg">Follow-ups due</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 md:space-y-5 md:px-6 md:pb-6">
+          <CardContent className="space-y-3 md:space-y-5 md:px-5 md:pb-6">
             {stats.followUps.map((c) => (
               <div key={c.id} className="flex items-center justify-between gap-3 border-b border-border/50 pb-2 md:pb-3 last:border-0 last:pb-0">
                 <div className="min-w-0">
-                  <p className="truncate text-sm md:text-lg font-medium md:font-semibold">{c.name}</p>
+                  <p className="truncate text-sm md:text-base font-medium md:font-semibold">{c.name}</p>
                   <p className="truncate text-xs md:text-sm text-muted-foreground">
                     {[c.company, c.phone].filter(Boolean).join(" · ") || "—"}
                   </p>
@@ -126,20 +126,20 @@ export default function Dashboard() {
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3 md:pb-4 md:pt-6 md:px-6">
-            <CardTitle className="text-base md:text-xl">Recent leads</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-3 md:pb-4 md:pt-6 md:px-5">
+            <CardTitle className="text-base md:text-lg">Recent leads</CardTitle>
             <Link to="/clients" className="flex items-center gap-1 text-xs md:text-sm font-medium text-primary">
               View all <ArrowRight className="h-3 w-3 md:h-4 md:w-4" />
             </Link>
           </CardHeader>
-          <CardContent className="space-y-3 md:space-y-5 md:px-6 md:pb-6">
+          <CardContent className="space-y-3 md:space-y-5 md:px-5 md:pb-6">
             {stats.recentLeads.length === 0 && (
-              <p className="py-6 text-center text-sm md:text-base text-muted-foreground">No open leads yet.</p>
+              <p className="py-6 text-center text-sm md:text-[15px] text-muted-foreground">No open leads yet.</p>
             )}
             {stats.recentLeads.map((lead) => (
               <div key={lead.id} className="flex items-center justify-between gap-3 border-b border-border/50 pb-2 md:pb-3 last:border-0 last:pb-0">
                 <div className="min-w-0">
-                  <p className="truncate text-sm md:text-lg font-medium md:font-semibold">{lead.name}</p>
+                  <p className="truncate text-sm md:text-base font-medium md:font-semibold">{lead.name}</p>
                   <p className="truncate text-xs md:text-sm text-muted-foreground">
                     {[lead.city, lead.phone].filter(Boolean).join(" · ") || "—"}
                   </p>
@@ -151,20 +151,20 @@ export default function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3 md:pb-4 md:pt-6 md:px-6">
-            <CardTitle className="text-base md:text-xl">Open worker tasks</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between pb-3 md:pb-4 md:pt-6 md:px-5">
+            <CardTitle className="text-base md:text-lg">Open worker tasks</CardTitle>
             <Link to="/labour" className="flex items-center gap-1 text-xs md:text-sm font-medium text-primary">
               View all <ArrowRight className="h-3 w-3 md:h-4 md:w-4" />
             </Link>
           </CardHeader>
-          <CardContent className="space-y-3 md:space-y-5 md:px-6 md:pb-6">
+          <CardContent className="space-y-3 md:space-y-5 md:px-5 md:pb-6">
             {stats.openTasks.length === 0 && (
-              <p className="py-6 text-center text-sm md:text-base text-muted-foreground">No open tasks.</p>
+              <p className="py-6 text-center text-sm md:text-[15px] text-muted-foreground">No open tasks.</p>
             )}
             {stats.openTasks.map((task) => (
               <div key={task.id} className="flex items-center justify-between gap-3 border-b border-border/50 pb-2 md:pb-3 last:border-0 last:pb-0">
                 <div className="min-w-0">
-                  <p className="truncate text-sm md:text-lg font-medium md:font-semibold">{task.title}</p>
+                  <p className="truncate text-sm md:text-base font-medium md:font-semibold">{task.title}</p>
                   <p className="truncate text-xs md:text-sm text-muted-foreground">
                     {task.labourers?.name ?? "Unassigned"} · due {formatDate(task.due_date)}
                   </p>
