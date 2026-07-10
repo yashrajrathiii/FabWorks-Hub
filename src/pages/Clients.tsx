@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { parseNotesAndSupplier, serializeNotesAndSupplier } from "./ClientDetail";
 import {
   Dialog,
   DialogContent,
@@ -92,6 +93,11 @@ export default function Clients() {
 
   const saveMutation = useMutation({
     mutationFn: async (payload: ClientForm) => {
+      // retrieve original notes to preserve supplier details JSON
+      const originalNotes = editing ? clients.find((c) => c.id === editing.id)?.notes : null;
+      const { supplier } = parseNotesAndSupplier(originalNotes);
+      const finalizedNotes = serializeNotesAndSupplier(payload.notes, supplier);
+
       const row = {
         ...payload,
         company: payload.company || null,
@@ -104,7 +110,7 @@ export default function Clients() {
         work_type: payload.work_type || null,
         estimated_value: payload.estimated_value ? Number(payload.estimated_value) : null,
         follow_up_date: payload.follow_up_date || null,
-        notes: payload.notes || null,
+        notes: finalizedNotes || null,
       };
       if (editing) {
         const { error } = await supabase.from("clients").update(row).eq("id", editing.id);
@@ -158,6 +164,7 @@ export default function Clients() {
 
   function openEdit(client: Client) {
     setEditing(client);
+    const { notes } = parseNotesAndSupplier(client.notes);
     setForm({
       name: client.name,
       company: client.company ?? "",
@@ -171,35 +178,35 @@ export default function Clients() {
       work_type: client.work_type ?? "",
       estimated_value: client.estimated_value != null ? String(client.estimated_value) : "",
       follow_up_date: client.follow_up_date ?? "",
-      notes: client.notes ?? "",
+      notes: notes,
     });
     setDialogOpen(true);
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-[1440px] space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative flex-1 sm:max-w-md">
+          <Search className="absolute left-3 md:left-4 top-1/2 h-4 w-4 md:h-5 md:w-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search name, phone, city…"
-            className="pl-9"
+            className="pl-9 md:pl-11 md:h-12 md:text-base"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={openAdd} className="gap-2">
-          <Plus className="h-4 w-4" /> Add client / lead
+        <Button onClick={openAdd} className="gap-2 md:gap-3 md:h-12 md:px-6 md:text-base">
+          <Plus className="h-4 w-4 md:h-5 md:w-5" /> Add client / lead
         </Button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto pb-1 md:pb-2">
         {statusFilters.map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
             className={cn(
-              "whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              "whitespace-nowrap rounded-full border px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-medium transition-colors",
               filter === f.value
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-card text-muted-foreground hover:border-primary/40"
@@ -216,20 +223,21 @@ export default function Clients() {
         </div>
       ) : filtered.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center text-sm text-muted-foreground">
+          <CardContent className="py-16 text-center text-sm md:text-base text-muted-foreground">
             {clients.length === 0
               ? "No clients or leads yet. Add your first one to get started."
               : "Nothing matches your search."}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid auto-rows-fr gap-3 md:gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((client) => (
-            <Card
+            <div
               key={client.id}
               role="button"
               tabIndex={0}
-              className="cursor-pointer transition-colors hover:border-primary/40"
+              className="rounded-lg border bg-card text-card-foreground shadow-sm cursor-pointer transition-colors hover:border-primary/40"
+              style={{ display: "flex", flexDirection: "column", height: "100%" }}
               onClick={() => navigate(`/clients/${client.id}`)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -238,93 +246,106 @@ export default function Clients() {
                 }
               }}
             >
-              <CardContent className="space-y-3 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{client.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {[client.company, client.city].filter(Boolean).join(" · ") || "—"}
-                    </p>
+              <div 
+                className="space-y-3 md:space-y-4 p-4 md:p-6"
+                style={{ display: "flex", flexDirection: "column", flex: "1 1 auto" }}
+              >
+                {/* Top dynamic section */}
+                <div className="space-y-3 md:space-y-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold md:text-lg md:font-bold">{client.name}</p>
+                      <p className="truncate text-xs md:text-sm text-muted-foreground">
+                        {[client.company, client.city].filter(Boolean).join(" · ") || "—"}
+                      </p>
+                    </div>
+                    <StatusBadge status={client.status} />
                   </div>
-                  <StatusBadge status={client.status} />
-                </div>
-                {(client.work_type || client.estimated_value != null) && (
-                  <p className="truncate text-xs text-muted-foreground">
-                    {client.work_type}
-                    {client.work_type && client.estimated_value != null && " · "}
-                    {client.estimated_value != null && (
-                      <span className="font-medium text-foreground">
-                        est. {formatINR(client.estimated_value)}
-                      </span>
-                    )}
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                  {client.phone && (
-                    <a
-                      href={`tel:${client.phone}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1.5 text-sm text-primary"
-                    >
-                      <Phone className="h-3.5 w-3.5" /> {client.phone}
-                    </a>
+                  {(client.work_type || client.estimated_value != null) && (
+                    <p className="truncate text-xs md:text-sm text-muted-foreground">
+                      {client.work_type}
+                      {client.work_type && client.estimated_value != null && " · "}
+                      {client.estimated_value != null && (
+                        <span className="font-medium text-foreground">
+                          est. {formatINR(client.estimated_value)}
+                        </span>
+                      )}
+                    </p>
                   )}
-                  {(client.whatsapp || client.phone) && (
-                    <a
-                      href={`https://wa.me/${(client.whatsapp || client.phone || "").replace(/\D/g, "")}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1.5 text-sm text-success"
+                  {client.follow_up_date && client.status !== "lost" && client.status !== "completed" && (
+                    <span
+                      className={cn(
+                        "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 md:px-3 md:py-1.5 text-[11px] md:text-xs font-medium",
+                        client.follow_up_date <= toLocalDateString()
+                          ? "bg-destructive/10 text-destructive"
+                          : "bg-muted text-muted-foreground"
+                      )}
                     >
-                      <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-                    </a>
+                      <CalendarClock className="h-3 w-3 md:h-4 md:w-4" />
+                      {client.follow_up_date <= toLocalDateString()
+                        ? `Follow up due — ${formatDate(client.follow_up_date)}`
+                        : `Follow-up ${formatDate(client.follow_up_date)}`}
+                    </span>
+                  )}
+                  {client.notes && (
+                    <p className="line-clamp-2 text-xs md:text-sm text-muted-foreground">{client.notes}</p>
                   )}
                 </div>
-                {client.follow_up_date && client.status !== "lost" && client.status !== "completed" && (
-                  <span
-                    className={cn(
-                      "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium",
-                      client.follow_up_date <= toLocalDateString()
-                        ? "bg-destructive/10 text-destructive"
-                        : "bg-muted text-muted-foreground"
+
+                {/* Bottom fixed section */}
+                <div className="space-y-3 md:space-y-4" style={{ marginTop: "auto" }}>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-h-[24px] md:min-h-[28px]">
+                    {client.phone && (
+                      <a
+                        href={`tel:${client.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1.5 text-sm md:text-base text-primary"
+                      >
+                        <Phone className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> {client.phone}
+                      </a>
                     )}
+                    {(client.whatsapp || client.phone) && (
+                      <a
+                        href={`https://wa.me/${(client.whatsapp || client.phone || "").replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center gap-1.5 text-sm md:text-base text-success"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> WhatsApp
+                      </a>
+                    )}
+                  </div>
+                  <div 
+                    className="flex justify-end gap-1 md:gap-2 border-t pt-2 md:pt-3"
+                    style={{ display: "flex" }}
                   >
-                    <CalendarClock className="h-3 w-3" />
-                    {client.follow_up_date <= toLocalDateString()
-                      ? `Follow up due — ${formatDate(client.follow_up_date)}`
-                      : `Follow-up ${formatDate(client.follow_up_date)}`}
-                  </span>
-                )}
-                {client.notes && (
-                  <p className="line-clamp-2 text-xs text-muted-foreground">{client.notes}</p>
-                )}
-                <div className="flex justify-end gap-1 border-t pt-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 gap-1.5 px-2 text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEdit(client);
-                    }}
-                  >
-                    <Pencil className="h-3.5 w-3.5" /> Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 gap-1.5 px-2 text-xs text-destructive hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleting(client);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 md:h-9 gap-1.5 px-2 md:px-3 text-xs md:text-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEdit(client);
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5 md:h-4 md:w-4" /> Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 md:h-9 gap-1.5 px-2 md:px-3 text-xs md:text-sm text-destructive hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleting(client);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> Delete
+                    </Button>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}

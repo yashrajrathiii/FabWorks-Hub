@@ -75,29 +75,29 @@ export default function AttendanceTab() {
   const isToday = date === toDateString(new Date());
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 md:space-y-6">
       <Card>
-        <CardContent className="flex flex-wrap items-center gap-2 p-3">
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => shiftDate(-1)} aria-label="Previous day">
-            <ChevronLeft className="h-4 w-4" />
+        <CardContent className="flex flex-wrap items-center gap-2 md:gap-3 p-3 md:p-5">
+          <Button variant="outline" size="icon" className="h-9 w-9 md:h-11 md:w-11" onClick={() => shiftDate(-1)} aria-label="Previous day">
+            <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
           </Button>
-          <Input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="w-40" />
+          <Input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className="w-40 md:w-52 md:h-11 md:text-base" />
           <Button
             variant="outline"
             size="icon"
-            className="h-9 w-9"
+            className="h-9 w-9 md:h-11 md:w-11"
             onClick={() => shiftDate(1)}
             disabled={isToday}
             aria-label="Next day"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
           </Button>
           {!isToday && (
-            <Button variant="ghost" size="sm" onClick={() => setDate(toDateString(new Date()))}>
+            <Button variant="ghost" size="sm" className="md:h-11 md:text-sm md:px-4" onClick={() => setDate(toDateString(new Date()))}>
               Today
             </Button>
           )}
-          <p className="ml-auto text-xs text-muted-foreground">
+          <p className="ml-auto text-xs md:text-sm text-muted-foreground">
             Marked {todaysRecords.size}/{workers.length}
           </p>
         </CardContent>
@@ -109,12 +109,12 @@ export default function AttendanceTab() {
         </div>
       ) : workers.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center text-sm text-muted-foreground">
+          <CardContent className="py-16 text-center text-sm md:text-base text-muted-foreground">
             Add workers in the Workers tab first, then mark attendance here.
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 md:space-y-3">
           {workers.map((worker) => {
             const record = todaysRecords.get(worker.id);
             return (
@@ -131,16 +131,16 @@ export default function AttendanceTab() {
                   }
                 }}
               >
-                <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardContent className="flex flex-col gap-3 p-4 md:p-6 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 text-left">
-                    <p className="truncate font-medium">{worker.name}</p>
-                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <p className="truncate font-medium md:text-lg md:font-semibold">{worker.name}</p>
+                    <p className="flex items-center gap-1.5 text-xs md:text-sm text-muted-foreground">
                       <span className="capitalize">{worker.skill ?? "—"}</span>
                       {record && record.status !== "absent" && (
                         <>
                           <span
                             className={cn(
-                              "h-2 w-2 rounded-full",
+                              "h-2 w-2 md:h-2.5 md:w-2.5 rounded-full",
                               record.status === "present" ? "bg-success" : "bg-warning"
                             )}
                           />
@@ -149,7 +149,7 @@ export default function AttendanceTab() {
                       )}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 md:gap-3">
                     {statusOptions.map((opt) => (
                       <button
                         key={opt.value}
@@ -158,7 +158,7 @@ export default function AttendanceTab() {
                           markMutation.mutate({ labourerId: worker.id, status: opt.value });
                         }}
                         className={cn(
-                          "flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors sm:flex-none",
+                          "flex-1 rounded-lg border px-3 py-2 md:px-5 md:py-2.5 text-xs md:text-sm font-medium transition-colors sm:flex-none md:h-11",
                           record?.status === opt.value
                             ? opt.activeClass
                             : "border-border bg-card text-muted-foreground hover:border-primary/40"
@@ -176,10 +176,10 @@ export default function AttendanceTab() {
       )}
 
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">How this works</CardTitle>
+        <CardHeader className="pb-2 md:pb-3 md:pt-4">
+          <CardTitle className="text-sm md:text-base">How this works</CardTitle>
         </CardHeader>
-        <CardContent className="text-xs text-muted-foreground">
+        <CardContent className="text-xs md:text-sm text-muted-foreground">
           Attendance is saved per worker per day — tap a status to mark or change it. Tap anywhere on
           a worker's card to see their month-by-month attendance report.
         </CardContent>

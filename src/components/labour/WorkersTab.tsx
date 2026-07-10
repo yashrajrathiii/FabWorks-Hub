@@ -139,10 +139,10 @@ export default function WorkersTab() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 md:space-y-6">
       <div className="flex justify-end">
-        <Button onClick={openAdd} className="gap-2">
-          <Plus className="h-4 w-4" /> Add worker
+        <Button onClick={openAdd} className="gap-2 md:gap-3 md:h-12 md:px-6 md:text-base">
+          <Plus className="h-4 w-4 md:h-5 md:w-5" /> Add worker
         </Button>
       </div>
 
@@ -152,43 +152,60 @@ export default function WorkersTab() {
         </div>
       ) : workers.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center text-sm text-muted-foreground">
+          <CardContent className="py-16 text-center text-sm md:text-base text-muted-foreground">
             No workers yet. Add your labour team to start tracking attendance and tasks.
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid auto-rows-fr gap-3 md:gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {workers.map((worker) => (
-            <Card key={worker.id} className={!worker.is_active ? "opacity-60" : undefined}>
-              <CardContent className="space-y-3 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{worker.name}</p>
-                    <p className="text-xs capitalize text-muted-foreground">
-                      {worker.skill ?? "—"} · joined {formatDate(worker.joining_date)}
-                    </p>
+            <div 
+              key={worker.id} 
+              className={`rounded-lg border bg-card text-card-foreground shadow-sm ${!worker.is_active ? "opacity-60" : ""}`}
+              style={{ display: "flex", flexDirection: "column", height: "100%" }}
+            >
+              <div 
+                className="space-y-3 md:space-y-4 p-4 md:p-6"
+                style={{ display: "flex", flexDirection: "column", flex: "1 1 auto" }}
+              >
+                {/* Top dynamic section */}
+                <div className="space-y-3 md:space-y-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold md:text-lg md:font-bold">{worker.name}</p>
+                      <p className="text-xs md:text-sm capitalize text-muted-foreground">
+                        {worker.skill ?? "—"} · joined {formatDate(worker.joining_date)}
+                      </p>
+                    </div>
+                    <Badge variant={worker.is_active ? "secondary" : "outline"} className="shrink-0 md:text-xs md:px-2.5 md:py-0.5">
+                      {worker.is_active ? "Active" : "Inactive"}
+                    </Badge>
                   </div>
-                  <Badge variant={worker.is_active ? "secondary" : "outline"} className="shrink-0">
-                    {worker.is_active ? "Active" : "Inactive"}
-                  </Badge>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">
-                    {formatINR(worker.daily_wage)}/{payCycleUnit(worker.pay_cycle ?? "daily")}
-                  </span>
-                  {worker.phone && (
-                    <a href={`tel:${worker.phone}`} className="flex items-center gap-1.5 text-primary">
-                      <Phone className="h-3.5 w-3.5" /> {worker.phone}
-                    </a>
-                  )}
+
+                {/* Bottom fixed section */}
+                <div className="space-y-3 md:space-y-4" style={{ marginTop: "auto" }}>
+                  <div className="flex items-center justify-between text-sm md:text-base">
+                    <span className="font-medium">
+                      {formatINR(worker.daily_wage)}/{payCycleUnit(worker.pay_cycle ?? "daily")}
+                    </span>
+                    {worker.phone && (
+                      <a href={`tel:${worker.phone}`} className="flex items-center gap-1.5 text-primary">
+                        <Phone className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" /> {worker.phone}
+                      </a>
+                    )}
+                  </div>
+                  <div 
+                    className="flex justify-end border-t pt-2 md:pt-3"
+                    style={{ display: "flex" }}
+                  >
+                    <Button variant="ghost" size="sm" className="h-8 md:h-9 gap-1.5 px-2 md:px-3 text-xs md:text-sm" onClick={() => openEdit(worker)}>
+                      <Pencil className="h-3.5 w-3.5 md:h-4 md:w-4" /> Edit
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex justify-end border-t pt-2">
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2 text-xs" onClick={() => openEdit(worker)}>
-                    <Pencil className="h-3.5 w-3.5" /> Edit
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}

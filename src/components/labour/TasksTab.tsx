@@ -143,44 +143,44 @@ export default function TasksTab() {
     const isDone = task.status === "completed";
     return (
       <Card key={task.id} className={isDone ? "opacity-70" : undefined}>
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <CardContent className="flex flex-col gap-3 p-4 md:p-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-medium">{task.title}</p>
+              <p className="font-medium md:text-lg md:font-semibold">{task.title}</p>
               {task.clients?.name && (
-                <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+                <span className="rounded-full bg-primary/15 px-2 py-0.5 md:px-2.5 md:py-1 text-[10px] md:text-xs font-medium text-primary">
                   {task.clients.name}
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs md:text-sm text-muted-foreground">
               {task.labourers?.name ?? "Unassigned"} · {formatDate(task.start_date)}
               {task.due_date ? ` → due ${formatDate(task.due_date)}` : ""}
               {isDone && task.completed_at ? ` · completed ${formatDate(task.completed_at)}` : ""}
             </p>
             {task.description && (
-              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.description}</p>
+              <p className="mt-1 line-clamp-2 text-xs md:text-sm text-muted-foreground">{task.description}</p>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
             {!isDone && (
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 gap-1.5 text-xs text-success hover:text-success"
+                className="h-8 md:h-9 gap-1.5 px-2 md:px-3 text-xs md:text-sm text-success hover:text-success"
                 onClick={() => completeMutation.mutate(task.id)}
               >
-                <CheckCircle2 className="h-3.5 w-3.5" /> Done
+                <CheckCircle2 className="h-3.5 w-3.5 md:h-4 md:w-4" /> Done
               </Button>
             )}
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              className="h-8 w-8 md:h-9 md:w-9 text-muted-foreground hover:text-destructive"
               onClick={() => deleteMutation.mutate(task.id)}
               aria-label="Delete task"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-3.5 w-3.5 md:h-4.5 md:w-4.5" />
             </Button>
           </div>
         </CardContent>
@@ -189,15 +189,15 @@ export default function TasksTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 md:space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {filters.map((f) => (
             <button
               key={f.value}
               onClick={() => setFilter(f.value)}
               className={cn(
-                "whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                "whitespace-nowrap rounded-full border px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-medium transition-colors",
                 filter === f.value
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-card text-muted-foreground hover:border-primary/40"
@@ -207,8 +207,8 @@ export default function TasksTab() {
             </button>
           ))}
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="gap-2" disabled={workers.length === 0}>
-          <Plus className="h-4 w-4" /> Assign task
+        <Button onClick={() => setDialogOpen(true)} className="gap-2 md:gap-3 md:h-12 md:px-6 md:text-base" disabled={workers.length === 0}>
+          <Plus className="h-4 w-4 md:h-5 md:w-5" /> Assign task
         </Button>
       </div>
 
@@ -219,13 +219,13 @@ export default function TasksTab() {
       ) : (
         <>
           {filter !== "completed" && (
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-muted-foreground">
+            <section className="space-y-2 md:space-y-3">
+              <h3 className="text-sm md:text-base font-semibold text-muted-foreground">
                 In progress {inProgress.length > 0 && `(${inProgress.length})`}
               </h3>
               {inProgress.length === 0 ? (
                 <Card>
-                  <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                  <CardContent className="py-10 md:py-16 text-center text-sm md:text-base text-muted-foreground">
                     {workers.length === 0
                       ? "Add workers first, then assign them tasks."
                       : "No tasks in progress. Assign one to get started."}
@@ -238,13 +238,13 @@ export default function TasksTab() {
           )}
 
           {filter !== "in_progress" && (
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-muted-foreground">
+            <section className="space-y-2 md:space-y-3">
+              <h3 className="text-sm md:text-base font-semibold text-muted-foreground">
                 Completed {completed.length > 0 && `(${completed.length})`}
               </h3>
               {completed.length === 0 ? (
                 <Card>
-                  <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                  <CardContent className="py-10 md:py-16 text-center text-sm md:text-base text-muted-foreground">
                     Nothing completed yet — tasks land here when you mark them done.
                   </CardContent>
                 </Card>

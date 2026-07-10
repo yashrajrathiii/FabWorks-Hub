@@ -50,31 +50,31 @@ export default function Quotations() {
   }, [quotes, filter, search]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-[1440px] space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative flex-1 sm:max-w-md">
+          <Search className="absolute left-3 md:left-4 top-1/2 h-4 w-4 md:h-5 md:w-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search quotes…"
-            className="pl-9"
+            className="pl-9 md:pl-11 md:h-12 md:text-base"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button asChild className="gap-2">
+        <Button asChild className="gap-2 md:gap-3 md:h-12 md:px-6 md:text-base">
           <Link to="/quotations/new">
-            <Plus className="h-4 w-4" /> New quotation
+            <Plus className="h-4 w-4 md:h-5 md:w-5" /> New quotation
           </Link>
         </Button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto pb-1 md:pb-2">
         {filters.map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
             className={cn(
-              "whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              "whitespace-nowrap rounded-full border px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-medium transition-colors",
               filter === f.value
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border bg-card text-muted-foreground hover:border-primary/40"
@@ -92,8 +92,8 @@ export default function Quotations() {
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <FileText className="h-8 w-8 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">
+            <FileText className="h-8 w-8 md:h-10 md:w-10 text-muted-foreground/50" />
+            <p className="text-sm md:text-base text-muted-foreground">
               {quotes.length === 0
                 ? "No quotations yet. Create your first quote with the calculator."
                 : "Nothing matches your search."}
@@ -101,25 +101,25 @@ export default function Quotations() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 md:space-y-3">
           {filtered.map((quote) => (
             <Link key={quote.id} to={`/quotations/${quote.id}`} className="block">
               <Card className="transition-shadow hover:shadow-md">
-                <CardContent className="flex items-center justify-between gap-3 p-4">
+                <CardContent className="flex items-center justify-between gap-3 p-4 md:p-6">
                   <div className="min-w-0">
-                    <p className="truncate font-medium">
+                    <p className="truncate font-medium md:text-lg md:font-bold">
                       <span className="text-muted-foreground">#{quote.quote_number}</span>{" "}
                       {quote.project_title || "Untitled project"}
                     </p>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="truncate text-xs md:text-sm text-muted-foreground">
                       {quote.client_name || "No client"} · {formatDate(quote.created_at)}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
+                  <div className="flex shrink-0 items-center gap-3 md:gap-5">
                     <div className="text-right">
-                      <p className="font-semibold">{formatINR(quote.final_amount ?? quote.total)}</p>
+                      <p className="font-semibold md:text-lg md:font-bold">{formatINR(quote.final_amount ?? quote.total)}</p>
                       {quote.final_amount != null && (
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-success">agreed</p>
+                        <p className="text-[10px] md:text-xs font-medium uppercase tracking-wide text-success">agreed</p>
                       )}
                     </div>
                     <StatusBadge status={quote.status} />

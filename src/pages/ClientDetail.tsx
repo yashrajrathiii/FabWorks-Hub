@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +42,45 @@ import { cn } from "@/lib/utils";
 
 type TaskWithWorker = WorkerTask & { labourers: Pick<Labourer, "name"> | null };
 
+export interface SupplierPayment {
+  id: string;
+  amount: number;
+  date: string;
+  note?: string;
+}
+
+export interface SupplierDetails {
+  name: string;
+  kg_rate: number;
+  iron_kg: number;
+  total_amount: number;
+  payments: SupplierPayment[];
+}
+
+export function parseNotesAndSupplier(notesText: string | null): { notes: string; supplier: SupplierDetails | null } {
+  if (!notesText) return { notes: "", supplier: null };
+  const marker = "---SUPPLIER_DETAILS_JSON---";
+  const index = notesText.indexOf(marker);
+  if (index === -1) return { notes: notesText, supplier: null };
+  
+  const notes = notesText.substring(0, index).trim();
+  const jsonStr = notesText.substring(index + marker.length).trim();
+  try {
+    const supplier = JSON.parse(jsonStr) as SupplierDetails;
+    if (!supplier.payments) supplier.payments = [];
+    return { notes, supplier };
+  } catch (e) {
+    return { notes, supplier: null };
+  }
+}
+
+export function serializeNotesAndSupplier(notes: string, supplier: SupplierDetails | null): string {
+  const cleanNotes = notes ? notes.trim() : "";
+  if (!supplier) return cleanNotes;
+  const marker = "\n\n---SUPPLIER_DETAILS_JSON---\n";
+  return `${cleanNotes}${marker}${JSON.stringify(supplier)}`;
+}
+
 /** Pipeline steps in order; legacy "contacted"/"client" statuses map onto the nearest step. */
 const PIPELINE_STEPS = [
   { label: "New lead", statuses: ["new_lead", "contacted"] },
@@ -57,6 +99,31 @@ export default function ClientDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [attachOpen, setAttachOpen] = useState(false);
+  const [attachTaskOpen, setAttachTaskOpen] = useState(false);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [taskForm, setTaskForm] = useState({
+    labourer_id: "",
+    title: "",
+    description: "",
+    start_date: toLocalDateString(),
+    due_date: "",
+  });
+
+  const [supplierFormOpen, setSupplierFormOpen] = useState(false);
+  const [addPaymentOpen, setAddPaymentOpen] = useState(false);
+  
+  const [supplierForm, setSupplierForm] = useState({
+    name: "",
+    kg_rate: "",
+    iron_kg: "",
+    total_amount: "",
+  });
+
+  const [paymentForm, setPaymentForm] = useState({
+    amount: "",
+    date: toLocalDateString(),
+    note: "",
+  });
 
   const { data: client, isLoading: clientLoading } = useQuery({
     queryKey: ["client", id],
@@ -179,6 +246,144 @@ export default function ClientDetail() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const { data: unattachedTasks = [] } = useQuery({
+    queryKey: ["unattached-tasks"],
+    enabled: attachTaskOpen && isSupabaseConfigured,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("worker_tasks")
+        .select("*, labourers(name)")
+        .is("client_id", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as TaskWithWorker[];
+    },
+  });
+
+  const { data: labourers = [] } = useQuery({
+    queryKey: ["labourers-active"],
+    enabled: newTaskOpen && isSupabaseConfigured,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("labourers")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return data as Pick<Labourer, "id" | "name">[];
+    },
+  });
+
+  const attachTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("worker_tasks")
+        .update({ client_id: id })
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-tasks", id] });
+      queryClient.invalidateQueries({ queryKey: ["worker_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["unattached-tasks"] });
+      setAttachTaskOpen(false);
+      toast.success("Task attached to client");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const detachTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from("worker_tasks")
+        .update({ client_id: null })
+        .eq("id", taskId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-tasks", id] });
+      queryClient.invalidateQueries({ queryKey: ["worker_tasks"] });
+      toast.success("Task detached from client");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: async (payload: typeof taskForm) => {
+      const { error } = await supabase.from("worker_tasks").insert({
+        labourer_id: payload.labourer_id,
+        client_id: id,
+        title: payload.title,
+        description: payload.description || null,
+        start_date: payload.start_date,
+        due_date: payload.due_date || null,
+        status: "in_progress",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client-tasks", id] });
+      queryClient.invalidateQueries({ queryKey: ["worker_tasks"] });
+      setNewTaskOpen(false);
+      setTaskForm({
+        labourer_id: "",
+        title: "",
+        description: "",
+        start_date: toLocalDateString(),
+        due_date: "",
+      });
+      toast.success("Task assigned and linked to client");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updateSupplierMutation = useMutation({
+    mutationFn: async (supplier: SupplierDetails | null) => {
+      const currentNotes = client?.notes ?? "";
+      const { notes } = parseNotesAndSupplier(currentNotes);
+      const finalizedNotes = serializeNotesAndSupplier(notes, supplier);
+      
+      const { error } = await supabase
+        .from("clients")
+        .update({ notes: finalizedNotes })
+        .eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["client", id] });
+      toast.success("Supplier details updated");
+      setSupplierFormOpen(false);
+      setAddPaymentOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const { supplier } = parseNotesAndSupplier(client?.notes ?? null);
+
+  function openEditSupplier() {
+    setSupplierForm({
+      name: supplier?.name ?? "",
+      kg_rate: supplier?.kg_rate != null ? String(supplier.kg_rate) : "",
+      iron_kg: supplier?.iron_kg != null ? String(supplier.iron_kg) : "",
+      total_amount: supplier?.total_amount != null ? String(supplier.total_amount) : "",
+    });
+    setSupplierFormOpen(true);
+  }
+
+  function handleSupplierFormChange(field: string, value: string) {
+    setSupplierForm((prev) => {
+      const updated = { ...prev, [field]: value };
+      if (field === "kg_rate" || field === "iron_kg") {
+        const rate = parseFloat(field === "kg_rate" ? value : prev.kg_rate) || 0;
+        const kg = parseFloat(field === "iron_kg" ? value : prev.iron_kg) || 0;
+        if (rate > 0 && kg > 0) {
+          updated.total_amount = String(Math.round(rate * kg));
+        }
+      }
+      return updated;
+    });
+  }
 
   if (clientLoading) {
     return (
@@ -378,9 +583,19 @@ export default function ClientDetail() {
           {/* Linked worker tasks */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <ClipboardList className="h-4 w-4 text-primary" /> Worker tasks for this client
-              </CardTitle>
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <ClipboardList className="h-4 w-4 text-primary" /> Worker tasks for this client
+                </CardTitle>
+                <div className="flex gap-1.5">
+                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setAttachTaskOpen(true)}>
+                    <Link2 className="h-3.5 w-3.5" /> Attach task
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setNewTaskOpen(true)}>
+                    <Plus className="h-3.5 w-3.5" /> New task
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-2">
               {tasksResult?.unavailable ? (
@@ -389,7 +604,7 @@ export default function ClientDetail() {
                 </p>
               ) : tasks.length === 0 ? (
                 <p className="py-2 text-center text-sm text-muted-foreground">
-                  No tasks linked yet. Pick this client when assigning a task in Labour → Tasks.
+                  No tasks linked yet. Map existing tasks or create a new one above.
                 </p>
               ) : (
                 <>
@@ -402,7 +617,18 @@ export default function ClientDetail() {
                           {task.due_date ? ` → due ${formatDate(task.due_date)}` : ""}
                         </p>
                       </div>
-                      <StatusBadge status="in_progress" />
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status="in_progress" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => detachTaskMutation.mutate(task.id)}
+                          title="Unlink task"
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   {doneTasks.map((task) => (
@@ -414,9 +640,159 @@ export default function ClientDetail() {
                           {task.completed_at ? ` · completed ${formatDate(task.completed_at)}` : ""}
                         </p>
                       </div>
-                      <StatusBadge status="completed" />
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status="completed" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => detachTaskMutation.mutate(task.id)}
+                          title="Unlink task"
+                        >
+                          <Unlink className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Supplier details & payments */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Package className="h-4 w-4 text-primary" /> Supplier details &amp; payments
+                </CardTitle>
+                {supplier && (
+                  <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={openEditSupplier}>
+                    <Pencil className="h-3 w-3" /> Edit details
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!supplier ? (
+                <div className="py-6 text-center">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    No supplier details added yet for this project.
+                  </p>
+                  <Button size="sm" className="gap-1.5" onClick={openEditSupplier}>
+                    <Plus className="h-3.5 w-3.5" /> Add supplier details
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Supplier Name</p>
+                      <p className="text-sm font-semibold truncate mt-0.5">{supplier.name}</p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Finalized Rate</p>
+                      <p className="text-sm font-semibold mt-0.5">
+                        {supplier.kg_rate ? `${formatINR(supplier.kg_rate)}/kg` : "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Iron Quantity</p>
+                      <p className="text-sm font-semibold mt-0.5">
+                        {supplier.iron_kg ? `${supplier.iron_kg.toLocaleString()} kg` : "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Total Deal Amount</p>
+                      <p className="text-sm font-semibold mt-0.5">{formatINR(supplier.total_amount)}</p>
+                    </div>
+                  </div>
+
+                  {/* Financials grid */}
+                  {(() => {
+                    const totalPaid = (supplier.payments ?? []).reduce((sum, p) => sum + p.amount, 0);
+                    const balance = Math.max(0, supplier.total_amount - totalPaid);
+                    return (
+                      <>
+                        <div className="grid grid-cols-3 gap-2 text-center pt-2">
+                          <div className="rounded-lg border p-2">
+                            <p className="text-[11px] text-muted-foreground">Deal amount</p>
+                            <p className="text-sm font-semibold">{formatINR(supplier.total_amount)}</p>
+                          </div>
+                          <div className="rounded-lg border p-2">
+                            <p className="text-[11px] text-muted-foreground">Paid to supplier</p>
+                            <p className="text-sm font-semibold text-success">{formatINR(totalPaid)}</p>
+                          </div>
+                          <div className="rounded-lg border p-2">
+                            <p className="text-[11px] text-muted-foreground">Balance to pay</p>
+                            <p className={cn("text-sm font-semibold", balance > 0 ? "text-warning" : "text-success")}>
+                              {formatINR(balance)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Payments list */}
+                        <div className="border-t pt-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              Supplier Payments
+                            </h4>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-6 gap-1 text-[11px] px-2"
+                              onClick={() => {
+                                setPaymentForm({
+                                  amount: "",
+                                  date: toLocalDateString(),
+                                  note: "",
+                                });
+                                setAddPaymentOpen(true);
+                              }}
+                            >
+                              <Plus className="h-3 w-3" /> Record payment
+                            </Button>
+                          </div>
+
+                          {(supplier.payments ?? []).length === 0 ? (
+                            <p className="py-2 text-center text-xs text-muted-foreground">
+                              No payments recorded yet.
+                            </p>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {supplier.payments.map((p) => (
+                                <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border p-2 text-xs">
+                                  <div>
+                                    <p className="font-semibold text-success">{formatINR(p.amount)}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                      {formatDate(p.date)}{p.note ? ` · ${p.note}` : ""}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                    onClick={() => {
+                                      if (confirm("Are you sure you want to delete this payment record?")) {
+                                        const updatedPayments = supplier.payments.filter(item => item.id !== p.id);
+                                        updateSupplierMutation.mutate({
+                                          ...supplier,
+                                          payments: updatedPayments
+                                        });
+                                      }
+                                    }}
+                                    title="Delete payment"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </>
               )}
             </CardContent>
@@ -586,6 +962,312 @@ export default function ClientDetail() {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Attach task dialog */}
+      <Dialog open={attachTaskOpen} onOpenChange={setAttachTaskOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Attach a task</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+            {unattachedTasks.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No unattached worker tasks found. Create a new task or go to Labour → Tasks to assign tasks.
+              </p>
+            ) : (
+              unattachedTasks.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  disabled={attachTaskMutation.isPending}
+                  onClick={() => attachTaskMutation.mutate(t.id)}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg border p-3 text-left transition-colors hover:border-primary/40 disabled:opacity-60"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{t.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t.labourers?.name ?? "Unassigned"} · {formatDate(t.start_date)}
+                    </p>
+                  </div>
+                  <Plus className="h-4 w-4 shrink-0 text-primary" />
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create new task dialog */}
+      <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create and map new task</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!taskForm.labourer_id) {
+                toast.error("Please select a worker");
+                return;
+              }
+              if (!taskForm.title.trim()) {
+                toast.error("Please enter a task title");
+                return;
+              }
+              createTaskMutation.mutate(taskForm);
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="task-title">Task title *</Label>
+              <Input
+                id="task-title"
+                required
+                placeholder="e.g. Grinding & Welding frames"
+                value={taskForm.title}
+                onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
+              />
+            </div>
+            
+            <div className="space-y-1.5">
+              <Label htmlFor="task-worker">Assign worker *</Label>
+              <Select
+                value={taskForm.labourer_id}
+                onValueChange={(val) => setTaskForm({ ...taskForm, labourer_id: val })}
+              >
+                <SelectTrigger id="task-worker">
+                  <SelectValue placeholder="Select a worker" />
+                </SelectTrigger>
+                <SelectContent>
+                  {labourers.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      No active workers
+                    </SelectItem>
+                  ) : (
+                    labourers.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="task-description">Details</Label>
+              <Textarea
+                id="task-description"
+                placeholder="Optional task details or notes"
+                value={taskForm.description}
+                onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="task-start">Start date</Label>
+                <Input
+                  id="task-start"
+                  type="date"
+                  value={taskForm.start_date}
+                  onChange={(e) => setTaskForm({ ...taskForm, start_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="task-due">Due date</Label>
+                <Input
+                  id="task-due"
+                  type="date"
+                  value={taskForm.due_date}
+                  onChange={(e) => setTaskForm({ ...taskForm, due_date: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setNewTaskOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createTaskMutation.isPending}>
+                {createTaskMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create task
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Supplier form dialog */}
+      <Dialog open={supplierFormOpen} onOpenChange={setSupplierFormOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{supplier ? "Edit supplier details" : "Add supplier details"}</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!supplierForm.name.trim()) {
+                toast.error("Please enter a supplier name");
+                return;
+              }
+              const rate = parseFloat(supplierForm.kg_rate) || 0;
+              const kg = parseFloat(supplierForm.iron_kg) || 0;
+              const total = parseFloat(supplierForm.total_amount) || 0;
+
+              updateSupplierMutation.mutate({
+                name: supplierForm.name.trim(),
+                kg_rate: rate > 0 ? rate : 0,
+                iron_kg: kg > 0 ? kg : 0,
+                total_amount: total > 0 ? total : 0,
+                payments: supplier?.payments ?? [],
+              });
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="supplier-name">Supplier name *</Label>
+              <Input
+                id="supplier-name"
+                required
+                placeholder="e.g. Jindal Steel distributor"
+                value={supplierForm.name}
+                onChange={(e) => handleSupplierFormChange("name", e.target.value)}
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="supplier-rate">Price /kg (₹)</Label>
+                <Input
+                  id="supplier-rate"
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder="e.g. 55"
+                  value={supplierForm.kg_rate}
+                  onChange={(e) => handleSupplierFormChange("kg_rate", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="supplier-kg">Quantity (kg)</Label>
+                <Input
+                  id="supplier-kg"
+                  type="number"
+                  min="0"
+                  step="any"
+                  inputMode="decimal"
+                  placeholder="e.g. 1000"
+                  value={supplierForm.iron_kg}
+                  onChange={(e) => handleSupplierFormChange("iron_kg", e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="supplier-total">Total deal amount (₹)</Label>
+              <Input
+                id="supplier-total"
+                type="number"
+                min="0"
+                inputMode="decimal"
+                placeholder="Calculated automatically or custom"
+                value={supplierForm.total_amount}
+                onChange={(e) => handleSupplierFormChange("total_amount", e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setSupplierFormOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateSupplierMutation.isPending}>
+                {updateSupplierMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save details
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Record supplier payment dialog */}
+      <Dialog open={addPaymentOpen} onOpenChange={setAddPaymentOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record supplier payment</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const amt = parseFloat(paymentForm.amount) || 0;
+              if (amt <= 0) {
+                toast.error("Please enter a valid payment amount");
+                return;
+              }
+              if (!supplier) return;
+
+              const newPayment = {
+                id: crypto.randomUUID(),
+                amount: amt,
+                date: paymentForm.date,
+                note: paymentForm.note.trim() || undefined,
+              };
+
+              updateSupplierMutation.mutate({
+                ...supplier,
+                payments: [...(supplier.payments ?? []), newPayment],
+              });
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="payment-amount">Amount paid (₹) *</Label>
+              <Input
+                id="payment-amount"
+                type="number"
+                min="1"
+                required
+                inputMode="decimal"
+                placeholder="e.g. 20000"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="payment-date">Payment date</Label>
+              <Input
+                id="payment-date"
+                type="date"
+                required
+                value={paymentForm.date}
+                onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="payment-note">Note / Reference</Label>
+              <Input
+                id="payment-note"
+                placeholder="e.g. Online transfer / Cash"
+                value={paymentForm.note}
+                onChange={(e) => setPaymentForm({ ...paymentForm, note: e.target.value })}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setAddPaymentOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={updateSupplierMutation.isPending}>
+                {updateSupplierMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Record payment
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
