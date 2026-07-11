@@ -34,8 +34,8 @@ export default function AppLayout() {
         <div className="flex items-center gap-2.5 px-5 py-5">
           <img src="/logo.png" alt="FabWorks" className="h-9 w-9" />
           <div>
-            <p className="text-sm font-bold leading-tight text-foreground">Tarbha</p>
-            <p className="text-[11px] text-sidebar-foreground/60">Industries</p>
+            <p className="text-xl font-bold leading-tight text-foreground">Tarbha</p>
+            <p className="text-sm font-medium text-sidebar-foreground/60">Industries</p>
           </div>
         </div>
         <nav className="mt-2 flex flex-1 flex-col gap-1 px-3">
