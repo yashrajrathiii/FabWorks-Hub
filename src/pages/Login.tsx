@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Flame, Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const { session, signIn } = useAuth();
@@ -37,9 +37,7 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/25">
-            <Flame className="h-7 w-7 text-primary-foreground" />
-          </div>
+          <img src="/logo.png" alt="FabWorks" className="h-14 w-14 rounded-2xl shadow-lg shadow-primary/25" />
           <div className="text-center">
             <h1 className="text-2xl font-bold tracking-tight">FabWorks Hub</h1>
             <p className="text-sm text-muted-foreground">Iron fabrication business manager</p>

@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, HardHat, Calculator, Settings, LogOut, Flame } from "lucide-react";
+import { LayoutDashboard, Users, HardHat, Calculator, Settings, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -32,11 +32,9 @@ export default function AppLayout() {
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col bg-sidebar text-sidebar-foreground md:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-            <Flame className="h-5 w-5 text-sidebar-primary-foreground" />
-          </div>
+          <img src="/logo.png" alt="FabWorks" className="h-9 w-9" />
           <div>
-            <p className="text-sm font-bold leading-tight text-white">FabWorks Hub</p>
+            <p className="text-sm font-bold leading-tight text-foreground">FabWorks Hub</p>
             <p className="text-[11px] text-sidebar-foreground/60">Iron Fabrication</p>
           </div>
         </div>
@@ -92,9 +90,7 @@ export default function AppLayout() {
         {/* Top bar */}
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-card/95 px-4 backdrop-blur md:px-8">
           <div className="flex items-center gap-2 md:hidden">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary">
-              <Flame className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <img src="/logo.png" alt="FabWorks" className="h-7 w-7" />
             <span className="text-sm font-bold">FabWorks</span>
           </div>
           <h1 className="hidden text-lg font-semibold md:block">{title}</h1>
