@@ -34,8 +34,8 @@ export default function AppLayout() {
         <div className="flex items-center gap-2.5 px-5 py-5">
           <img src="/logo.png" alt="FabWorks" className="h-9 w-9" />
           <div>
-            <p className="text-sm font-bold leading-tight text-foreground">FabWorks Hub</p>
-            <p className="text-[11px] text-sidebar-foreground/60">Iron Fabrication</p>
+            <p className="text-sm font-bold leading-tight text-foreground">Tarbha</p>
+            <p className="text-[11px] text-sidebar-foreground/60">Industries</p>
           </div>
         </div>
         <nav className="mt-2 flex flex-1 flex-col gap-1 px-3">
@@ -91,7 +91,7 @@ export default function AppLayout() {
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-card/95 px-4 backdrop-blur md:px-8">
           <div className="flex items-center gap-2 md:hidden">
             <img src="/logo.png" alt="FabWorks" className="h-7 w-7" />
-            <span className="text-sm font-bold">FabWorks</span>
+            <span className="text-sm font-bold">Tarbha Industries</span>
           </div>
           <h1 className="hidden text-lg font-semibold md:block">{title}</h1>
           <Button variant="ghost" size="icon" onClick={signOut} className="md:hidden" aria-label="Sign out">
